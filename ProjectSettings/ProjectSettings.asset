@@ -166,7 +166,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.UnityTechnologies.UniversalMobile3DTemplate
+    Android: com.techverto.gerfunklet
     Standalone: com.UnityTechnologies.UniversalMobile3DTemplate
     iPhone: com.UnityTechnologies.UniversalMobile3DTemplate
   buildNumber:
@@ -901,6 +901,7 @@ PlayerSettings:
   XboxOneOverrideIdentityPublisher: 
   vrEditorSettings: {}
   cloudServicesEnabled:
+    Purchasing: 1
     UNet: 1
   luminIcon:
     m_Name: 

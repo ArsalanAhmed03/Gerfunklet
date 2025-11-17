@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "499160212495",
+    "project_id": "gerfunklet",
+    "storage_bucket": "gerfunklet.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:499160212495:android:459b6bd48f53942e83af7a",
+        "android_client_info": {
+          "package_name": "com.techverto.gerfunklet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhQXsotR4ts5gowXj5ALkS-gMacpeVCOY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
