@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using Unity.Services.Core;
@@ -39,27 +40,22 @@ public class FriendsManager : MonoBehaviour
     public Dictionary<string, int> KnownLevels = new();
 
     readonly List<GameObject> _spawned = new();
+    readonly SemaphoreSlim _refreshLock = new(1, 1);
+    Task _servicesInitTask;
+    string _lastPlayerId;
     int _rowIndex;
 
     async void Awake()
     {
-
-        if (UnityServices.State != ServicesInitializationState.Initialized)
-            await UnityServices.InitializeAsync();
-
-        if (!AuthenticationService.Instance.IsSignedIn)
-            await AuthenticationService.Instance.SignInAnonymouslyAsync();
-
-        await FriendsService.Instance.InitializeAsync();
+        _servicesInitTask = InitializeUnityServicesAsync();
 
         if (sendRequestButton) sendRequestButton.onClick.AddListener(OnSendRequestClicked);
-        if (refreshButton) refreshButton.onClick.AddListener(() => _ = RefreshAsync());
+        if (refreshButton) refreshButton.onClick.AddListener(() => _ = RefreshAsync(true));
 
-        await RefreshAsync();
+        await RefreshAsync(true);
 
         if (autoRefreshSeconds > 0f)
             InvokeRepeating(nameof(RefreshNow), autoRefreshSeconds, autoRefreshSeconds);
-
 
 
         if (closeFriendsButton) closeFriendsButton.onClick.AddListener(() => friendsPanel.SetActive(false));
@@ -69,24 +65,73 @@ public class FriendsManager : MonoBehaviour
     void OnEnable()
     {
         AuthenticationService.Instance.SignedIn += OnSignedIn;
+        AuthenticationService.Instance.SignedOut += OnSignedOut;
     }
 
     void OnDisable()
     {
         AuthenticationService.Instance.SignedIn -= OnSignedIn;
+        AuthenticationService.Instance.SignedOut -= OnSignedOut;
     }
 
     async void OnSignedIn()
     {
-        await RefreshAsync();
+        await RefreshAsync(true);
+    }
+
+    void OnSignedOut()
+    {
+        _lastPlayerId = null;
+        ClearSpawnedRows();
     }
 
     public async void RefreshNow() => await RefreshAsync();
 
-    async Task RefreshAsync()
+    async Task InitializeUnityServicesAsync()
     {
         try
         {
+            if (UnityServices.State != ServicesInitializationState.Initialized)
+                await UnityServices.InitializeAsync();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("[Friends] Unity Services init failed: " + e.Message);
+        }
+    }
+
+    async Task RefreshAsync(bool forceServerSync = false)
+    {
+        if (_servicesInitTask != null)
+        {
+            try { await _servicesInitTask; }
+            catch (Exception e)
+            {
+                Debug.LogError("[Friends] Cannot refresh; services not initialized: " + e.Message);
+                return;
+            }
+        }
+
+        if (!AuthenticationService.Instance.IsSignedIn)
+        {
+            _lastPlayerId = null;
+            ClearSpawnedRows();
+            return;
+        }
+
+        await _refreshLock.WaitAsync();
+        try
+        {
+            await FriendsService.Instance.InitializeAsync();
+
+            var currentPlayerId = AuthenticationService.Instance.PlayerId;
+            var shouldPullFromServer = forceServerSync || string.IsNullOrEmpty(_lastPlayerId) || _lastPlayerId != currentPlayerId;
+            if (shouldPullFromServer)
+            {
+                await FriendsService.Instance.ForceRelationshipsRefreshAsync();
+                _lastPlayerId = currentPlayerId;
+            }
+
             var friends = FriendsService.Instance.Friends;
             var outgoing = FriendsService.Instance.OutgoingFriendRequests;
             var incoming = FriendsService.Instance.IncomingFriendRequests;
@@ -97,13 +142,26 @@ public class FriendsManager : MonoBehaviour
         {
             Debug.LogError("[Friends] Refresh failed: " + e.Message);
         }
+        finally
+        {
+            _refreshLock.Release();
+        }
+    }
+
+    void ClearSpawnedRows()
+    {
+        foreach (var go in _spawned)
+        {
+            if (go)
+                Destroy(go);
+        }
+        _spawned.Clear();
+        _rowIndex = 0;
     }
 
     void Rebuild(IReadOnlyList<Relationship> friends, IReadOnlyList<Relationship> outgoing, IReadOnlyList<Relationship> incoming)
     {
-        foreach (var go in _spawned) Destroy(go);
-        _spawned.Clear();
-        _rowIndex = 0;
+        ClearSpawnedRows();
 
         // Order: friends → outgoing → incoming (change if you prefer)
         foreach (var r in friends)
