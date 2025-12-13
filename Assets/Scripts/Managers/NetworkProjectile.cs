@@ -8,6 +8,8 @@ public class NetworkProjectile : NetworkBehaviour
     [SerializeField] private float lifeSeconds = 2.5f;
     [SerializeField] private float hitRadius = 0.25f;
 
+    [SerializeField] private float stunDuration = 4f;
+
     private Vector3 dir;
     private float dieAt;
     private bool _done;
@@ -58,7 +60,7 @@ public class NetworkProjectile : NetworkBehaviour
 
                         var stun = hit.collider.GetComponentInParent<StunReceiver>();
                         if (stun != null)
-                            stun.ApplyStunServerRpc(0.15f);
+                            stun.ApplyStunServerRpc(stunDuration);
                     }
 
                     SafeDespawn();

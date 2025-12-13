@@ -9,11 +9,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 10c137f397229504cac7c90b32b135d4, type: 3}
-  m_Name: AbilityStomp
+  m_Script: {fileID: 11500000, guid: 9354e7250723cdc4ea7c9b09a973b1f9, type: 3}
+  m_Name: Throw Ability Definition
   m_EditorClassIdentifier: 
-  id: 0
-  cooldownSeconds: 12
-  radius: 2.6
-  damage: 20
-  stunSeconds: 5
+  id: 3
+  cooldownSeconds: 8
+  projectilePrefab: {fileID: -1774017202085996492, guid: fb9059aaed590ad468a39c571075eeba, type: 3}
+  spawnForward: 1.2
+  spawnUp: 0.8

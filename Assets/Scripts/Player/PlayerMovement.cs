@@ -138,16 +138,15 @@ public class PlayerMovement : NetworkBehaviour
         if (abilityRunner != null)
         {
             if (ability1Action != null && ability1Action.WasPressedThisFrame())
-                abilityRunner.TryCastSlot1();
+                abilityRunner.TryCastSlot(0);
 
             if (ability2Action != null && ability2Action.WasPressedThisFrame())
-                abilityRunner.TryCastSlot2();
+                abilityRunner.TryCastSlot(1);
 
             if (ability3Action != null && ability3Action.WasPressedThisFrame())
-                abilityRunner.CastParryServerRpc();
-
+                abilityRunner.TryCastSlot(2);
             if (ability4Action != null && ability4Action.WasPressedThisFrame())
-                abilityRunner.CastThrowServerRpc();
+                abilityRunner.TryCastSlot(3);
         }
 
     }

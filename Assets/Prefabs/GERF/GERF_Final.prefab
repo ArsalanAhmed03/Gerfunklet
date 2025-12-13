@@ -1467,7 +1467,7 @@ Transform:
   m_GameObject: {fileID: 5810877104416554291}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.07997, y: -7.06568, z: -7.56081}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1628,6 +1628,13 @@ MonoBehaviour:
     TransitionIndex: 2
   - IsCrossFadeExit: 0
     Layer: 0
+    OriginatingState: 2081823275
+    DestinationState: -1907200461
+    TransitionDuration: 0.25
+    TriggerNameHash: -1907200461
+    TransitionIndex: 3
+  - IsCrossFadeExit: 0
+    Layer: 0
     OriginatingState: 1744665739
     DestinationState: 125937960
     TransitionDuration: 0.25
@@ -1640,6 +1647,13 @@ MonoBehaviour:
     TransitionDuration: 0.25
     TriggerNameHash: -1643012858
     TransitionIndex: 2
+  - IsCrossFadeExit: 0
+    Layer: 0
+    OriginatingState: 1744665739
+    DestinationState: -1907200461
+    TransitionDuration: 0.25
+    TriggerNameHash: -1907200461
+    TransitionIndex: 3
   m_Animator: {fileID: 8023060734423732900}
 --- !u!114 &8211649374698179802
 MonoBehaviour:
@@ -1722,11 +1736,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  slot1: {fileID: 11400000, guid: 20f3adbd7103e5b4886674784d144104, type: 2}
-  slot2: {fileID: 11400000, guid: 661ec0e8a65d27642b064bd014bbebef, type: 2}
-  slot3: {fileID: 11400000, guid: be907aa1722b8b1408792b0205fbc675, type: 2}
-  slot4: {fileID: 11400000, guid: 65b43dd83256d9445a7da25766183f16, type: 2}
-  projectilePrefab: {fileID: -1774017202085996492, guid: fb9059aaed590ad468a39c571075eeba, type: 3}
+  slots:
+  - {fileID: 11400000, guid: 29904c48677fe61438be96ef65c82b9e, type: 2}
+  - {fileID: 11400000, guid: 4ac8287928726e542be3ed8a4bdac412, type: 2}
+  - {fileID: 11400000, guid: eae70a18ce09a3248b3a101fe5a6cfda, type: 2}
+  - {fileID: 11400000, guid: c23298fcc90e9554cb7fb0da1e8ad462, type: 2}
 --- !u!114 &5106317536397322296
 MonoBehaviour:
   m_ObjectHideFlags: 0
