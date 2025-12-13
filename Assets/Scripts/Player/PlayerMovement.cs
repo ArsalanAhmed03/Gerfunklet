@@ -13,8 +13,12 @@ public class PlayerMovement : NetworkBehaviour
     private InputAction moveAction;
     private InputAction lookAction;
     private InputAction attackAction;
-
     private InputAction jumpAction;
+
+    private InputAction ability1Action;
+    private InputAction ability2Action;
+    private InputAction ability3Action;
+    private InputAction ability4Action;
 
     [Header("Animation")]
     public PlayerAnimator playerAnimator;
@@ -28,6 +32,11 @@ public class PlayerMovement : NetworkBehaviour
             lookAction = playerMap.FindAction("Look");
             attackAction = playerMap.FindAction("Attack");
             jumpAction = playerMap.FindAction("Jump");
+            ability1Action = playerMap.FindAction("Ability1");
+            ability2Action = playerMap.FindAction("Ability2");
+            ability3Action = playerMap.FindAction("Ability3");
+            ability4Action = playerMap.FindAction("Ability4");
+
         }
     }
 
@@ -37,6 +46,11 @@ public class PlayerMovement : NetworkBehaviour
         lookAction?.Enable();
         attackAction?.Enable();
         jumpAction?.Enable();
+        ability1Action?.Enable();
+        ability2Action?.Enable();
+        ability3Action?.Enable();
+        ability4Action?.Enable();
+
     }
 
     private void OnDisable()
@@ -45,13 +59,24 @@ public class PlayerMovement : NetworkBehaviour
         lookAction?.Disable();
         attackAction?.Disable();
         jumpAction?.Disable();
+        ability1Action?.Disable();
+        ability2Action?.Disable();
+        ability3Action?.Disable();
+        ability4Action?.Disable();
+
     }
 
     private void Update()
     {
         if (!IsOwner) return;
-        if (moveAction == null) return;
+        var stun = GetComponent<StunReceiver>();
+        if (stun != null && stun.IsStunned)
+        {
+            playerAnimator?.SetMoving(false);
+            return;
+        }
 
+        if (moveAction == null) return;
         if (CameraController.Instance != null && !CameraController.Instance.IsFollowingTarget())
         {
             CameraController.Instance.SetTarget(transform);
@@ -64,7 +89,10 @@ public class PlayerMovement : NetworkBehaviour
         if (move.sqrMagnitude > 0.01f)
         {
             // Move character
-            transform.Translate(move.normalized * moveSpeed * Time.deltaTime, Space.World);
+            // transform.Translate(move.normalized * moveSpeed * Time.deltaTime, Space.World);
+            var buff = GetComponent<BuffReceiver>();
+            float speedMul = buff != null ? buff.MoveSpeedMultiplier : 1f;
+            transform.Translate(move.normalized * moveSpeed * speedMul * Time.deltaTime, Space.World);
 
             // Rotate to face direction
             transform.forward = move;
@@ -105,5 +133,22 @@ public class PlayerMovement : NetworkBehaviour
                 playerAnimator?.Jump();
             }
         }
+
+        var abilityRunner = GetComponent<AbilityRunner>();
+        if (abilityRunner != null)
+        {
+            if (ability1Action != null && ability1Action.WasPressedThisFrame())
+                abilityRunner.TryCastSlot1();
+
+            if (ability2Action != null && ability2Action.WasPressedThisFrame())
+                abilityRunner.TryCastSlot2();
+
+            if (ability3Action != null && ability3Action.WasPressedThisFrame())
+                abilityRunner.CastParryServerRpc();
+
+            if (ability4Action != null && ability4Action.WasPressedThisFrame())
+                abilityRunner.CastThrowServerRpc();
+        }
+
     }
 }

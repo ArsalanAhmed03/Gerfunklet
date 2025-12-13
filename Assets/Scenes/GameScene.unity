@@ -11722,7 +11722,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1767574907}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 99478a1aea115694991f36381e340bf1, type: 3}
   m_Name: 
@@ -12583,7 +12583,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  playerPrefab: {fileID: 8529901964881285209, guid: d753352505db32d46b4844f7fb037eb7, type: 3}
+  playerPrefab: {fileID: 5810877104416554291, guid: 214995e7cb6d76f4288250aae516480d, type: 3}
   minionPrefab: {fileID: 8529901964881285209, guid: ff3b005f6d82db649adaadb2506f6d65, type: 3}
   spawnLocations:
   - {fileID: 707407314}

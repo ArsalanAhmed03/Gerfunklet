@@ -11,14 +11,14 @@ public class TileColliderRelay : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log("TileColliderRelay: OnTriggerEnter called");
+        // Debug.Log("TileColliderRelay: OnTriggerEnter called");
         if (tile != null)
             tile.HandleTriggerEnter(other);
     }
 
     private void OnTriggerExit(Collider other)
     {
-        Debug.Log("TileColliderRelay: OnTriggerExit called");
+        // Debug.Log("TileColliderRelay: OnTriggerExit called");
         if (tile != null)
             tile.HandleTriggerExit(other);
     }

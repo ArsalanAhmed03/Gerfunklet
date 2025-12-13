@@ -64,7 +64,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 6cd5b7a3568883d469e82accca1cfb9b, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -756,7 +756,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8778666231538856777}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 04e156bef601b4b4c8b2714e04cd9406, type: 3}
   m_Name: 
@@ -769,6 +769,9 @@ MonoBehaviour:
   baseWobbleAmplitude: 0.05
   baseWobbleSpeed: 3
   playerTag: Player
+  fallDistance: 5
+  fallDuration: 2
+  postFallDelay: 0.75
 --- !u!54 &2492738392011286185
 Rigidbody:
   m_ObjectHideFlags: 0

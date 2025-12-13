@@ -35,7 +35,7 @@ public class MinionAI : NetworkBehaviour
 
     private void Update()
     {
-        // if (!IsOwner) return;
+        if (!IsServer) return;
 
         if (target == null) return;
 

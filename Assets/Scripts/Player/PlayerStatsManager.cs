@@ -19,21 +19,21 @@ public class PlayerStatsManager : NetworkBehaviour
 
     // Network Variables - synchronized across all clients
     private NetworkVariable<int> health = new NetworkVariable<int>(
-        100,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Owner
-    );
+    100,
+    NetworkVariableReadPermission.Everyone,
+    NetworkVariableWritePermission.Server
+);
 
     private NetworkVariable<int> points = new NetworkVariable<int>(
         0,
         NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Owner
+        NetworkVariableWritePermission.Server
     );
 
     private NetworkVariable<bool> isAlive = new NetworkVariable<bool>(
         true,
         NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Owner
+        NetworkVariableWritePermission.Server
     );
 
     // Events for UI and other systems to subscribe to
@@ -64,16 +64,18 @@ public class PlayerStatsManager : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        // Initialize stats when spawning
-        if (IsOwner)
+        if (IsServer)
         {
             health.Value = maxHealth;
             points.Value = startingPoints;
             isAlive.Value = true;
+        }
+
+        if (IsOwner)
+        {
             stamina = maxStamina;
         }
 
-        // Subscribe to network variable changes
         health.OnValueChanged += OnHealthValueChanged;
         points.OnValueChanged += OnPointsValueChanged;
         isAlive.OnValueChanged += OnAliveStatusChanged;
@@ -81,6 +83,7 @@ public class PlayerStatsManager : NetworkBehaviour
         if (debugMode)
             Debug.Log($"PlayerStatsManager initialized for {(IsOwner ? "Owner" : "Non-Owner")}");
     }
+
 
     public override void OnNetworkDespawn()
     {
@@ -95,37 +98,34 @@ public class PlayerStatsManager : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void TakeDamageServerRpc(int damage)
     {
-        TakeDamageClientRpc(damage);
-    }
+        Debug.Log("TakeDamageServerRpc called on server");
 
-    [ClientRpc(RequireOwnership = false)]
-    private void TakeDamageClientRpc(int damage)
-    {
-        TakeDamage(damage);
-    }
-
-    public void TakeDamage(int damage)
-    {
-        if (!IsOwner || !isAlive.Value) return;
+        if (!isAlive.Value) return;
+        if (damage <= 0) return;
 
         int newHealth = Mathf.Max(0, health.Value - damage);
         health.Value = newHealth;
-
-        GameManager.Instance.healthBar.value = (float)newHealth / maxHealth;
-        TextMeshProUGUI healthText = GameManager.Instance.healthBar.GetComponentInChildren<TextMeshProUGUI>();
-
-
-        if (healthText != null)
-        {
-            healthText.text = newHealth.ToString();
-        }
-
+        UpdateHealthUIClientRpc(newHealth);
         if (debugMode)
-            Debug.Log($"Player took {damage} damage. Health: {newHealth}/{maxHealth}");
+            Debug.Log($"[SERVER] Player took {damage} damage. Health: {newHealth}/{maxHealth}");
 
         if (newHealth <= 0)
         {
             Die();
+            if (debugMode) Debug.Log("[SERVER] Player died!");
+        }
+    }
+
+    [ClientRpc(RequireOwnership = false)]
+    private void UpdateHealthUIClientRpc(int newHealth)
+    {
+        if (!IsOwner) return;
+        Debug.Log("Updating Health UI via ClientRpc");
+        GameManager.Instance.healthBar.value = (float)newHealth / maxHealth;
+        TextMeshProUGUI healthText = GameManager.Instance.healthBar.GetComponentInChildren<TextMeshProUGUI>();
+        if (healthText != null)
+        {
+            healthText.text = newHealth.ToString();
         }
     }
 
@@ -149,8 +149,7 @@ public class PlayerStatsManager : NetworkBehaviour
 
     private void Die()
     {
-        if (!IsOwner) return;
-
+        if (!IsServer) return;
         isAlive.Value = false;
 
         if (debugMode)
@@ -243,6 +242,7 @@ public class PlayerStatsManager : NetworkBehaviour
 
     private void OnHealthValueChanged(int oldHealth, int newHealth)
     {
+        if (!IsOwner) return;
         OnHealthChanged?.Invoke(newHealth, maxHealth);
 
         if (debugMode)
@@ -276,7 +276,7 @@ public class PlayerStatsManager : NetworkBehaviour
     [ContextMenu("Take 10 Damage")]
     private void TakeDamageTest()
     {
-        TakeDamage(10);
+        TakeDamageServerRpc(10);
     }
 
     [ContextMenu("Heal 20")]
@@ -294,7 +294,7 @@ public class PlayerStatsManager : NetworkBehaviour
     [ContextMenu("Kill Player")]
     private void KillTest()
     {
-        TakeDamage(health.Value);
+        TakeDamageServerRpc(health.Value);
     }
 
     [ContextMenu("Respawn Player")]

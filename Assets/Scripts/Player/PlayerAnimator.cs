@@ -8,12 +8,14 @@ public class PlayerAnimator : MonoBehaviour
     private int isWalkingHash;
     private int attackTriggerHash;
     private int jumpTriggerHash;
+    public int stompTriggerHash;
 
     private void Awake()
     {
         isWalkingHash = Animator.StringToHash("isWalking");
         attackTriggerHash = Animator.StringToHash("Attack");
         jumpTriggerHash = Animator.StringToHash("Jump");
+        stompTriggerHash = Animator.StringToHash("Stomp");
     }
 
     /// <summary>
@@ -38,5 +40,13 @@ public class PlayerAnimator : MonoBehaviour
     public void Jump()
     {
         animator.SetTrigger(jumpTriggerHash);
+    }
+
+    /// <summary>
+    /// Fire stomp trigger
+    /// </summary>
+    public void Stomp()
+    {
+        animator.SetTrigger(stompTriggerHash);
     }
 }
