@@ -69,6 +69,7 @@ public class PlayerMovement : NetworkBehaviour
     private void Update()
     {
         if (!IsOwner) return;
+        if (GameManager.Instance != null && !GameManager.Instance.GameplayEnabled) return;
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned)
         {

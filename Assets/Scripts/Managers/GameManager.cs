@@ -1,9 +1,23 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
+
+    [Header("UI")]
+    public Slider healthBar;
+    public Slider staminaBar;
+
+    [Header("Optional Match UI")]
+    [SerializeField] private TextMeshProUGUI statusText;  // "Waiting / Countdown / Playing / Ended"
+    [SerializeField] private TextMeshProUGUI endText;     // "You Win / You Lose"
+
+    [Header("Spawns")]
+    public Transform playerSpawns;
+
+    public bool GameplayEnabled { get; private set; } = false;
 
     private void Awake()
     {
@@ -18,11 +32,17 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void SetGameplayEnabled(bool enabled)
+    {
+        GameplayEnabled = enabled;
 
-    public Slider healthBar;
+        if (statusText != null)
+            statusText.text = enabled ? "Playing" : "Not Playing";
+    }
 
-    public Slider staminaBar;
-
-    public Transform playerSpawns;
-
+    public void ShowMatchEnd(bool iWon)
+    {
+        if (endText != null)
+            endText.text = iWon ? "YOU WIN" : "YOU LOSE";
+    }
 }

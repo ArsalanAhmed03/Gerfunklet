@@ -78,6 +78,10 @@ public class TileGridManager : NetworkBehaviour
         if (allTiles.Count == 0)
             return;
 
+        if (MatchManager.Instance == null) return;
+        if (MatchManager.Instance.Phase.Value != (int)MatchManager.MatchPhase.Overtime) return;
+
+        
         collapseTimer += Time.deltaTime;
         if (collapseTimer >= collapseInterval)
         {
@@ -116,10 +120,10 @@ public class TileGridManager : NetworkBehaviour
         {
             Vector3 p = t.transform.position;
 
-            bool onLeft   = Mathf.Abs(p.x - minX) <= tol;
-            bool onRight  = Mathf.Abs(p.x - maxX) <= tol;
+            bool onLeft = Mathf.Abs(p.x - minX) <= tol;
+            bool onRight = Mathf.Abs(p.x - maxX) <= tol;
             bool onBottom = Mathf.Abs(p.z - minZ) <= tol;
-            bool onTop    = Mathf.Abs(p.z - maxZ) <= tol;
+            bool onTop = Mathf.Abs(p.z - maxZ) <= tol;
 
             if (onLeft || onRight || onBottom || onTop)
             {

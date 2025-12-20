@@ -756,14 +756,14 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8778666231538856777}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 04e156bef601b4b4c8b2714e04cd9406, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  maxCumulativeOccupancy: 15
-  wobbleStartTime: 8
+  maxCumulativeOccupancy: 100
+  wobbleStartTime: 50
   timeRemainingText: {fileID: 7111053145703807973}
   visualRoot: {fileID: 8631800291622599468}
   baseWobbleAmplitude: 0.05
