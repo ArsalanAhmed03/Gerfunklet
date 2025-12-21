@@ -219,4 +219,56 @@ public class LocalSpawner : NetworkBehaviour
             Debug.LogWarning("Player prefab should have a NetworkObject component!");
         }
     }
+
+    public Transform GetSpawnForIndex(int index)
+    {
+        if (spawnLocations == null || spawnLocations.Length == 0) return null;
+        index = Mathf.Clamp(index, 0, spawnLocations.Length - 1);
+        return spawnLocations[index];
+    }
+
+    public void RespawnAllPlayersAtSpawnsServer()
+    {
+        if (!IsServer) return;
+
+        int idx = 0;
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            if (!spawnedPlayers.TryGetValue(client.ClientId, out var playerGO) || playerGO == null)
+                continue;
+
+            Transform sp = GetSpawnForIndex(idx);
+            idx++;
+
+            if (sp == null) continue;
+
+            playerGO.transform.SetPositionAndRotation(sp.position, sp.rotation);
+
+            // reset stats on server
+            var stats = playerGO.GetComponent<PlayerStatsManager>();
+            if (stats != null)
+                stats.ResetForNewRoundServerRpc();
+            var tele = playerGO.GetComponent<PlayerTeleport>();
+            if (tele != null)
+            {
+                var target = new ClientRpcParams
+                {
+                    Send = new ClientRpcSendParams
+                    {
+                        TargetClientIds = new[] { client.ClientId }
+                    }
+                };
+
+                tele.TeleportOwnerClientRpc(sp.position, sp.rotation, target);
+            }
+            else
+            {
+                // fallback
+                playerGO.transform.SetPositionAndRotation(sp.position, sp.rotation);
+            }
+
+        }
+    }
+
+
 }

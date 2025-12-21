@@ -318,4 +318,35 @@ public class PlayerStatsManager : NetworkBehaviour
             return false;
         }
     }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ResetForNewRoundServerRpc()
+    {
+        if (!IsServer) return;
+
+        health.Value = maxHealth;
+        points.Value = startingPoints;
+        isAlive.Value = true;
+
+        // also update owner UI immediately
+        UpdateHealthUIClientRpc(health.Value);
+
+        // stamina is local, so tell owner client to reset it
+        ResetStaminaOwnerClientRpc();
+    }
+
+    [ClientRpc]
+    private void ResetStaminaOwnerClientRpc()
+    {
+        if (!IsOwner) return;
+        stamina = maxStamina;
+
+        if (GameManager.Instance != null && GameManager.Instance.staminaBar != null)
+        {
+            GameManager.Instance.staminaBar.value = 1f;
+            var staminaText = GameManager.Instance.staminaBar.GetComponentInChildren<TextMeshProUGUI>();
+            if (staminaText != null) staminaText.text = $"Stamina: {stamina}";
+        }
+    }
+
 }

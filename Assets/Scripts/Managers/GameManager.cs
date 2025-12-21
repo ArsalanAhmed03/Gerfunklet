@@ -10,12 +10,26 @@ public class GameManager : MonoBehaviour
     public Slider healthBar;
     public Slider staminaBar;
 
+
+
+    [Header("Objective UI")]
+    public Slider dangerCaptureBar;      // enemy capturing my zone
+    public Slider myCaptureBar;          // me capturing enemy zone (optional)
+    public TextMeshProUGUI captureStateText;
+
+    [Header("Objective Zones")]
+    public ObjectiveZone zoneA;
+    public ObjectiveZone zoneB;
+
     [Header("Optional Match UI")]
     [SerializeField] private TextMeshProUGUI statusText;  // "Waiting / Countdown / Playing / Ended"
     [SerializeField] private TextMeshProUGUI endText;     // "You Win / You Lose"
 
     [Header("Spawns")]
     public Transform playerSpawns;
+
+    [Header("Match UI")]
+    public TextMeshProUGUI matchTimerText;
 
     public bool GameplayEnabled { get; private set; } = false;
 
