@@ -50,6 +50,12 @@ public class ObjectiveZone : NetworkBehaviour
     // store ClientIds inside this trigger
     private readonly HashSet<ulong> inside = new HashSet<ulong>();
 
+    private void OnDisable()
+    {
+        if (IsServer)
+            inside.Clear();
+    }
+
     private void Reset()
     {
         var col = GetComponent<Collider>();
@@ -65,24 +71,12 @@ public class ObjectiveZone : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!IsServer) return;
-        if (!other.CompareTag(playerTag)) return;
-
-        var no = other.GetComponentInParent<NetworkObject>();
-        if (no == null) return;
-
-        inside.Add(no.OwnerClientId);
+        TryRegisterOccupant(other, add: true);
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if (!IsServer) return;
-        if (!other.CompareTag(playerTag)) return;
-
-        var no = other.GetComponentInParent<NetworkObject>();
-        if (no == null) return;
-
-        inside.Remove(no.OwnerClientId);
+        TryRegisterOccupant(other, add: false);
     }
 
     private void Update()
@@ -113,15 +107,7 @@ public class ObjectiveZone : NetworkBehaviour
 
         bool ownerInside = inside.Contains(ownerClientId.Value);
 
-        ulong attackerId = ulong.MaxValue;
-        foreach (var id in inside)
-        {
-            if (id != ownerClientId.Value)
-            {
-                attackerId = id;
-                break;
-            }
-        }
+        ulong attackerId = GetAttackerClientId();
         bool attackerInside = attackerId != ulong.MaxValue;
 
         contested.Value = attackerInside && ownerInside;
@@ -173,5 +159,30 @@ public class ObjectiveZone : NetworkBehaviour
         ownerClientId.Value = transform.position.x <= 0f ? a : b;
 
         _ownerAssigned = true;
+    }
+
+    private void TryRegisterOccupant(Collider other, bool add)
+    {
+        if (!IsServer) return;
+        if (!other.CompareTag(playerTag)) return;
+
+        var no = other.GetComponentInParent<NetworkObject>();
+        if (no == null) return;
+
+        if (add)
+            inside.Add(no.OwnerClientId);
+        else
+            inside.Remove(no.OwnerClientId);
+    }
+
+    private ulong GetAttackerClientId()
+    {
+        foreach (var id in inside)
+        {
+            if (id != ownerClientId.Value)
+                return id;
+        }
+
+        return ulong.MaxValue;
     }
 }

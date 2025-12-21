@@ -30,6 +30,7 @@ public class NetworkSpawner : NetworkBehaviour
 
     private string targetSceneName = "";
     private bool isInitialized = false;
+
     private void Awake()
     {
         // Get the TextMeshProUGUI component from TimerText GameObject
@@ -41,6 +42,18 @@ public class NetworkSpawner : NetworkBehaviour
                 Debug.LogWarning("TimerText GameObject does not have a TextMeshProUGUI component");
             }
         }
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        init();
+    }
+
+    private void OnDestroy()
+    {
+        if (NetworkManager.Singleton == null) return;
+        NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+        NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
     }
 
 
@@ -162,7 +175,7 @@ public class NetworkSpawner : NetworkBehaviour
     private void OnClientConnected(ulong clientId)
     {
         Debug.Log("Client connected: " + clientId);
-        if(GetConnectedPlayers() >= minPlayers)
+        if (GetConnectedPlayers() >= minPlayers)
         {
             StartGame();
         }
@@ -175,6 +188,11 @@ public class NetworkSpawner : NetworkBehaviour
     private void StartGame()
     {
         if (gameStarted) return;
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogWarning("Cannot start game: NetworkManager missing.");
+            return;
+        }
 
         gameStarted = true;
         timerActive = false; // Stop the timer when game starts

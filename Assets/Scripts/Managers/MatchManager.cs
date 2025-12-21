@@ -40,7 +40,12 @@ public class MatchManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    NetworkVariable<int> CurrentRound;
+    NetworkVariable<int> PlayerAWins;
+    NetworkVariable<int> PlayerBWins;
+
     private bool _countdownStarted;
+    private Coroutine _countdownRoutine;
 
     private void Awake()
     {
@@ -53,15 +58,7 @@ public class MatchManager : NetworkBehaviour
         if (!IsServer) return;
 
         if ((MatchPhase)Phase.Value == MatchPhase.WaitingForPlayers)
-        {
-            if (!_countdownStarted &&
-                LocalSpawner.Instance != null &&
-                LocalSpawner.Instance.GetSpawnedPlayerCount() >= requiredPlayers)
-            {
-                _countdownStarted = true;
-                StartCoroutine(CountdownRoutine());
-            }
-        }
+            TryStartCountdown();
 
         if ((MatchPhase)Phase.Value == MatchPhase.Playing)
         {
@@ -76,6 +73,11 @@ public class MatchManager : NetworkBehaviour
 
     private IEnumerator CountdownRoutine()
     {
+        if (_countdownStarted && _countdownRoutine != null)
+            StopCoroutine(_countdownRoutine);
+
+        _countdownStarted = true;
+
         Phase.Value = (int)MatchPhase.Countdown;
 
         MatchRemaining.Value = matchSeconds;
@@ -94,6 +96,7 @@ public class MatchManager : NetworkBehaviour
 
         SetGameplayEnabledClientRpc(true);
 
+        _countdownRoutine = null;
     }
 
     public void NotifyPlayerDied(ulong deadClientId)
@@ -198,11 +201,15 @@ public class MatchManager : NetworkBehaviour
         // hard reset internal flags
         _ended = false;
         _countdownStarted = false;
+        _countdownRoutine = null;
         WinnerClientId.Value = ulong.MaxValue;
 
         // reset objective capture resolution state
         _pendingWinner = ulong.MaxValue;
         _pendingWinnerTime = -1;
+
+        // reset phase before rebuilding state so UI can show "Waiting"
+        Phase.Value = (int)MatchPhase.WaitingForPlayers;
 
         // disable gameplay during reset
         SetGameplayEnabledClientRpc(false);
@@ -219,7 +226,7 @@ public class MatchManager : NetworkBehaviour
             LocalSpawner.Instance.RespawnAllPlayersAtSpawnsServer();
 
         // start countdown again
-        StartCoroutine(CountdownRoutine());
+        TryStartCountdown();
     }
 
     private void DespawnAllMinionsServer()
@@ -246,6 +253,7 @@ public class MatchManager : NetworkBehaviour
         {
             z.progress01.Value = 0f;
             z.contested.Value = false;
+            z.currentAttackerClientId.Value = ulong.MaxValue;
             // keep owner assignment as-is; it will remain correct
         }
     }
@@ -261,7 +269,12 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    private void TryStartCountdown()
+    {
+        if (_countdownStarted) return;
+        if (LocalSpawner.Instance == null) return;
+        if (LocalSpawner.Instance.GetSpawnedPlayerCount() < requiredPlayers) return;
 
-
-
+        _countdownRoutine = StartCoroutine(CountdownRoutine());
+    }
 }

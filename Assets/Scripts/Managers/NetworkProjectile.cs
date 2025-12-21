@@ -7,8 +7,10 @@ public class NetworkProjectile : NetworkBehaviour
     [SerializeField] private int damage = 40;
     [SerializeField] private float lifeSeconds = 2.5f;
     [SerializeField] private float hitRadius = 0.25f;
-
     [SerializeField] private float stunDuration = 4f;
+
+    // was static readonly -> move to runtime init
+    private int playerMask;
 
     private Vector3 dir;
     private float dieAt;
@@ -16,6 +18,16 @@ public class NetworkProjectile : NetworkBehaviour
 
     // optional: who fired it so we don't hit them
     private ulong _ownerClientId;
+
+    private void Awake()
+    {
+        // Safe place to call Unity APIs
+        playerMask = LayerMask.GetMask("Player");
+
+        // Optional: warn if the layer doesn't exist (mask becomes 0)
+        if (playerMask == 0)
+            Debug.LogWarning("NetworkProjectile: LayerMask for 'Player' is 0. Make sure a layer named 'Player' exists and players are on it.");
+    }
 
     public void InitServer(Vector3 direction, ulong ownerClientId)
     {
@@ -32,28 +44,30 @@ public class NetworkProjectile : NetworkBehaviour
         Vector3 start = transform.position;
         Vector3 end = start + dir * speed * Time.deltaTime;
 
-        // Only hit players (layer must exist)
-        int playerMask = LayerMask.GetMask("Player");
-
         // SphereCast to avoid tunneling
         Vector3 delta = end - start;
         float dist = delta.magnitude;
 
         if (dist > 0f)
         {
-            if (Physics.SphereCast(start, hitRadius, delta.normalized, out RaycastHit hit, dist, playerMask, QueryTriggerInteraction.Ignore))
+            if (Physics.SphereCast(
+                    start,
+                    hitRadius,
+                    delta.normalized,
+                    out RaycastHit hit,
+                    dist,
+                    playerMask,
+                    QueryTriggerInteraction.Ignore))
             {
-                var stats = hit.collider.GetComponentInParent<PlayerStatsManager>();
-
                 // Ignore self-owner (important)
                 var hitNetObj = hit.collider.GetComponentInParent<NetworkObject>();
                 if (hitNetObj != null && hitNetObj.OwnerClientId == _ownerClientId)
                 {
-                    // just move forward, no hit
                     transform.position = end;
                 }
                 else
                 {
+                    var stats = hit.collider.GetComponentInParent<PlayerStatsManager>();
                     if (stats != null)
                     {
                         stats.TakeDamageServerRpc(damage);

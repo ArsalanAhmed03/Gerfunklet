@@ -121,8 +121,11 @@ public class PlayerMovement : NetworkBehaviour
                     statsManager.modifyStamina(-10);
                 }
 
-                Debug.Log("Requesting minion spawn from server...");
-                LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);
+                if (LocalSpawner.Instance != null)
+                {
+                    Debug.Log("Requesting minion spawn from server...");
+                    LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);
+                }
             }
         }
 

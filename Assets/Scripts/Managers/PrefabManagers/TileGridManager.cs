@@ -6,11 +6,11 @@ public class TileGridManager : NetworkBehaviour
 {
     public static TileGridManager Instance { get; private set; }
 
-    [Header("Existing Tiles")]
-    [SerializeField] private Transform tilesRoot;   // assign in Inspector (parent containing all tiles)
-    [SerializeField] private float tileSize = 2f;   // optional, informational
+    [Header("Existing Tiles (scene placed)")]
+    [SerializeField] private Transform tilesRoot;   // parent containing all tiles in the scene
+    [SerializeField] private float tileSize = 2f;   // informational (used for edge tolerance)
 
-    [Header("Shrinking arena")]
+    [Header("Shrinking arena (Overtime only)")]
     [SerializeField] private float collapseInterval = 10f;       // seconds between edge collapses
     [SerializeField] private float edgeToleranceFactor = 0.5f;   // how close to min/max to count as edge
 
@@ -24,7 +24,6 @@ public class TileGridManager : NetworkBehaviour
             Destroy(gameObject);
             return;
         }
-
         Instance = this;
     }
 
@@ -57,31 +56,19 @@ public class TileGridManager : NetworkBehaviour
 
         Debug.Log($"TileGridManager registered {allTiles.Count} tiles under {tilesRoot.name}");
 
-        if (IsServer)
-        {
-            foreach (var tile in allTiles)
-            {
-                var no = tile.GetComponent<NetworkObject>();
-                if (no != null && !no.IsSpawned)
-                {
-                    no.Spawn(true);
-                }
-            }
-        }
+        // IMPORTANT:
+        // Tiles are scene-placed NetworkObjects, so DO NOT call Spawn() here.
+        // Netcode spawns scene objects automatically when the scene is loaded in a network session.
     }
 
     private void Update()
     {
-        if (!IsServer)
-            return;
-
-        if (allTiles.Count == 0)
-            return;
+        if (!IsServer) return;
+        if (allTiles.Count == 0) return;
 
         if (MatchManager.Instance == null) return;
         if (MatchManager.Instance.Phase.Value != (int)MatchManager.MatchPhase.Overtime) return;
 
-        
         collapseTimer += Time.deltaTime;
         if (collapseTimer >= collapseInterval)
         {
@@ -92,11 +79,13 @@ public class TileGridManager : NetworkBehaviour
 
     private void CollapseOuterRing()
     {
+        // Alive = isActive true (your new TileBehaviour)
         List<TileBehaviour> aliveTiles = new List<TileBehaviour>();
         foreach (var t in allTiles)
         {
-            if (t != null && t.IsAlive && !t.IsFalling)
-                aliveTiles.Add(t);
+            if (t == null) continue;
+            if (!t.IsAlive) continue; // uses isActive.Value
+            aliveTiles.Add(t);
         }
 
         if (aliveTiles.Count == 0)
@@ -138,14 +127,9 @@ public class TileGridManager : NetworkBehaviour
 
         foreach (var t in allTiles)
         {
-            if (t == null)
-                continue;
-            if (!t.IsAlive)
-                continue;
-            if (t.IsFalling)
-                continue;
-            if (exclude != null && t == exclude)
-                continue;
+            if (t == null) continue;
+            if (!t.IsAlive) continue;
+            if (exclude != null && t == exclude) continue;
 
             candidates.Add(t);
         }
@@ -155,16 +139,6 @@ public class TileGridManager : NetworkBehaviour
 
         int idx = Random.Range(0, candidates.Count);
         return candidates[idx];
-    }
-
-    // hard-remove a player from every tile's occupants set
-    public void ClearPlayerFromAllTiles(ulong playerId)
-    {
-        foreach (var t in allTiles)
-        {
-            if (t == null) continue;
-            t.RemoveOccupant(playerId);
-        }
     }
 
     public TileBehaviour GetTileAt(int index)
@@ -183,6 +157,8 @@ public class TileGridManager : NetworkBehaviour
         foreach (var t in allTiles)
         {
             if (t == null) continue;
+            if (!t.IsAlive) continue;
+
             float dist = Vector3.SqrMagnitude(position - t.transform.position);
             if (dist < bestDist)
             {
@@ -191,5 +167,19 @@ public class TileGridManager : NetworkBehaviour
             }
         }
         return nearest;
+    }
+
+    // Optional: reset all tiles for a new round (server calls this)
+    public void ResetAllTilesForNewRoundServer()
+    {
+        if (!IsServer) return;
+
+        foreach (var t in allTiles)
+        {
+            if (t == null) continue;
+            t.ResetTileForNewRoundServer();
+        }
+
+        collapseTimer = 0f;
     }
 }

@@ -30,22 +30,24 @@ public class LocalSpawner : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (IsHost)
+        if (!IsServer) return;
+
+        if (!HasValidSpawnPoints())
         {
-            Debug.Log("LocalSpawner initialized on Server");
-
-            // SpawnPlayerForClient(NetworkManager.Singleton.LocalClientId);
-            foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
-            {
-                SpawnPlayerForClient(client.ClientId);
-            }
-
-            // Subscribe to client connection events
-            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
-
-            // Spawn player for host immediately
+            Debug.LogError("LocalSpawner missing spawn locations; cannot spawn players.");
+            return;
         }
+
+        Debug.Log("LocalSpawner initialized on Server");
+
+        // Spawn existing connections (host + any late joiners pre-start)
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            SpawnPlayerForClient(client.ClientId);
+        }
+
+        NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+        NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
     }
 
     public override void OnNetworkDespawn()
@@ -76,14 +78,13 @@ public class LocalSpawner : NetworkBehaviour
     private void SpawnPlayerForClient(ulong clientId)
     {
         if (!IsServer) return;
-        // Validation checks
         if (playerPrefab == null)
         {
             Debug.LogError("Player prefab is not assigned!");
             return;
         }
 
-        if (spawnLocations == null || spawnLocations.Length == 0)
+        if (!HasValidSpawnPoints())
         {
             Debug.LogError("No spawn locations assigned!");
             return;
@@ -124,14 +125,19 @@ public class LocalSpawner : NetworkBehaviour
     public void SpawnMinionForClientServerRpc(ulong clientId)
     {
         Debug.Log($"SpawnMinionForClientServerRpc called by client {clientId}");
-        // Validation checks
         if (minionPrefab == null)
         {
             Debug.LogError("Minion prefab is not assigned!");
             return;
         }
 
-        Transform spawnLocation = spawnedPlayers[clientId]?.transform;
+        if (!spawnedPlayers.TryGetValue(clientId, out var ownerPlayer) || ownerPlayer == null)
+        {
+            Debug.LogWarning($"Cannot spawn minion: player for client {clientId} not found.");
+            return;
+        }
+
+        Transform spawnLocation = ownerPlayer.transform;
         Vector3 spawnPosition = spawnLocation.position;
         Quaternion spawnRotation = spawnLocation.rotation;
 
@@ -146,20 +152,24 @@ public class LocalSpawner : NetworkBehaviour
             networkObject.Spawn();
 
             var minionAI = minionInstance.GetComponent<MinionAI>();
-            if (NetworkManager.Singleton.LocalClientId == clientId)
+            if (minionAI != null)
             {
-                foreach (var kvp in spawnedPlayers)
+                if (NetworkManager.Singleton.LocalClientId == clientId)
                 {
-                    if (kvp.Key != clientId)
+                    foreach (var kvp in spawnedPlayers)
                     {
-                        minionAI.target = kvp.Value?.transform;
-                        break;
+                        if (kvp.Key != clientId)
+                        {
+                            minionAI.target = kvp.Value?.transform;
+                            break;
+                        }
                     }
                 }
-            }
-            else
-            {
-                minionAI.target = spawnedPlayers[NetworkManager.Singleton.LocalClientId]?.transform;
+                else
+                {
+                    if (spawnedPlayers.TryGetValue(NetworkManager.Singleton.LocalClientId, out var targetPlayer))
+                        minionAI.target = targetPlayer?.transform;
+                }
             }
 
             if (debugMode)
@@ -209,6 +219,11 @@ public class LocalSpawner : NetworkBehaviour
     public int GetSpawnedPlayerCount()
     {
         return spawnedPlayers.Count;
+    }
+
+    private bool HasValidSpawnPoints()
+    {
+        return spawnLocations != null && spawnLocations.Length > 0;
     }
 
     // Validation

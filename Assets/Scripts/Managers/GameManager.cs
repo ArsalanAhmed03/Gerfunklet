@@ -46,6 +46,12 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void SetGameplayEnabled(bool enabled)
     {
         GameplayEnabled = enabled;

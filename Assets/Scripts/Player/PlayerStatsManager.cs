@@ -74,6 +74,7 @@ public class PlayerStatsManager : NetworkBehaviour
         if (IsOwner)
         {
             stamina = maxStamina;
+            UpdateStaminaUI();
         }
 
         health.OnValueChanged += OnHealthValueChanged;
@@ -120,6 +121,8 @@ public class PlayerStatsManager : NetworkBehaviour
     private void UpdateHealthUIClientRpc(int newHealth)
     {
         if (!IsOwner) return;
+        if (GameManager.Instance == null || GameManager.Instance.healthBar == null) return;
+
         Debug.Log("Updating Health UI via ClientRpc");
         GameManager.Instance.healthBar.value = (float)newHealth / maxHealth;
         TextMeshProUGUI healthText = GameManager.Instance.healthBar.GetComponentInChildren<TextMeshProUGUI>();
@@ -222,13 +225,7 @@ public class PlayerStatsManager : NetworkBehaviour
             amount = amount + stamina < 0 ? -stamina : amount;
         }
         stamina += amount;
-        GameManager.Instance.staminaBar.value = (float)stamina / maxStamina;
-        TextMeshProUGUI staminaText = GameManager.Instance.staminaBar.GetComponentInChildren<TextMeshProUGUI>();
-
-        if (staminaText != null)
-        {
-            staminaText.text = $"Stamina: {stamina}";
-        }
+        UpdateStaminaUI();
     }
 
     public int getStamina()
@@ -341,12 +338,16 @@ public class PlayerStatsManager : NetworkBehaviour
         if (!IsOwner) return;
         stamina = maxStamina;
 
-        if (GameManager.Instance != null && GameManager.Instance.staminaBar != null)
-        {
-            GameManager.Instance.staminaBar.value = 1f;
-            var staminaText = GameManager.Instance.staminaBar.GetComponentInChildren<TextMeshProUGUI>();
-            if (staminaText != null) staminaText.text = $"Stamina: {stamina}";
-        }
+        UpdateStaminaUI();
     }
 
+    private void UpdateStaminaUI()
+    {
+        if (GameManager.Instance == null || GameManager.Instance.staminaBar == null)
+            return;
+
+        GameManager.Instance.staminaBar.value = (float)stamina / maxStamina;
+        var staminaText = GameManager.Instance.staminaBar.GetComponentInChildren<TextMeshProUGUI>();
+        if (staminaText != null) staminaText.text = $"Stamina: {stamina}";
+    }
 }

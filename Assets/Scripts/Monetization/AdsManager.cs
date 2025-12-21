@@ -23,16 +23,24 @@ public class AdsManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            interstitialAds.LoadInterstitialAd();
-            rewardedAds.LoadRewardedAds();
+            interstitialAds?.LoadInterstitialAd();
+            rewardedAds?.LoadRewardedAds();
 
-            rewardedAdButton.onClick.AddListener(() => {
-                rewardedAds.ShowRewardedAd();
-            });
+            if (rewardedAdButton != null)
+            {
+                rewardedAdButton.onClick.AddListener(() =>
+                {
+                    rewardedAds?.ShowRewardedAd();
+                });
+            }
 
-            interstitialAdButton.onClick.AddListener(() => {
-                interstitialAds.ShowInterstitialAd();
-            });
+            if (interstitialAdButton != null)
+            {
+                interstitialAdButton.onClick.AddListener(() =>
+                {
+                    interstitialAds?.ShowInterstitialAd();
+                });
+            }
 
         }
         else

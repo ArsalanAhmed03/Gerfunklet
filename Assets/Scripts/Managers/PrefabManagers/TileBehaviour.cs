@@ -26,8 +26,8 @@ public class TileBehaviour : NetworkBehaviour
     [SerializeField] private float postFallDelay = 0.75f;
 
     [Header("Disable visuals/colliders on collapse")]
-    [SerializeField] private Collider[] collidersToDisable;     // optional; if empty we auto-find
-    [SerializeField] private Renderer[] renderersToDisable;     // optional; if empty we auto-find
+    [SerializeField] private Collider[] collidersToDisable; // optional; if empty we auto-find
+    [SerializeField] private Renderer[] renderersToDisable; // optional; if empty we auto-find
 
     // Server-authoritative timer (readable by all)
     public NetworkVariable<float> timeRemaining = new NetworkVariable<float>(
@@ -43,6 +43,14 @@ public class TileBehaviour : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    // Fall state broadcast: when > 0, everyone animates fall locally using server time
+    // 0 means "not falling"
+    public NetworkVariable<double> fallStartServerTime = new NetworkVariable<double>(
+        0d,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     // occupants stored as NetworkObjectId (NOT OwnerClientId)
     private readonly HashSet<ulong> occupants = new HashSet<ulong>();
 
@@ -50,10 +58,11 @@ public class TileBehaviour : NetworkBehaviour
     private Vector3 initialWorldPos;
     private Quaternion initialWorldRot;
 
-    public bool IsAlive => isActive.Value; // for grid filtering
-    public bool IsFalling { get; private set; }
+    private bool _localFallingVisual;          // local visual state (client + server)
+    private Vector3 _fallStartPos;             // where the fall started (for visuals)
+    private List<ulong> fallOccupantsSnapshot; // server only
 
-    private List<ulong> fallOccupantsSnapshot;
+    public bool IsAlive => isActive.Value; // for grid filtering
 
     private void Awake()
     {
@@ -76,8 +85,8 @@ public class TileBehaviour : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         isActive.OnValueChanged += OnActiveChanged;
+        fallStartServerTime.OnValueChanged += OnFallStartChanged;
 
-        // apply current state on spawn (client + server)
         ApplyActiveState(isActive.Value);
 
         if (IsServer)
@@ -87,35 +96,48 @@ public class TileBehaviour : NetworkBehaviour
 
             if (!isActive.Value)
                 isActive.Value = true;
+
+            // ensure clean state on spawn
+            if (fallStartServerTime.Value != 0d)
+                fallStartServerTime.Value = 0d;
         }
     }
 
     public override void OnNetworkDespawn()
     {
         isActive.OnValueChanged -= OnActiveChanged;
+        fallStartServerTime.OnValueChanged -= OnFallStartChanged;
     }
 
     private void Update()
     {
-        // if inactive, do nothing (no wobble/text)
         if (!isActive.Value)
             return;
 
-        // Server controls timer + fall
+        // Server controls timer and triggers fall start
         if (IsServer)
         {
-            if (timeRemaining.Value <= 0f && !IsFalling)
-                BeginFallIfNeeded();
-
-            if (!IsFalling)
+            // If already falling, don't tick timer
+            if (fallStartServerTime.Value == 0d)
                 TickTimer();
+
+            // Safety: if timer is 0 and fall not started yet -> start
+            if (timeRemaining.Value <= 0f && fallStartServerTime.Value == 0d)
+                BeginFallIfNeeded();
         }
 
-        if (IsFalling)
-            return;
+        // Everyone renders wobble + timer text while not falling
+        if (!_localFallingVisual)
+        {
+            ApplyWobbleLocal();
+            UpdateTimerTextLocal();
+        }
 
-        ApplyWobbleLocal();
-        UpdateTimerTextLocal();
+        // Everyone animates fall if it has started (based on server time)
+        if (fallStartServerTime.Value != 0d)
+        {
+            AnimateFallLocal();
+        }
     }
 
     private void TickTimer()
@@ -126,10 +148,7 @@ public class TileBehaviour : NetworkBehaviour
         timeRemaining.Value -= Time.deltaTime;
 
         if (timeRemaining.Value <= 0f)
-        {
             timeRemaining.Value = 0f;
-            BeginFallIfNeeded();
-        }
     }
 
     public void ForceFall()
@@ -149,46 +168,39 @@ public class TileBehaviour : NetworkBehaviour
     private void BeginFallIfNeeded()
     {
         if (!IsServer) return;
-        if (IsFalling) return;
         if (!isActive.Value) return;
+        if (fallStartServerTime.Value != 0d) return; // already falling
 
-        IsFalling = true;
+        // Snapshot who was on the tile at the moment it started to fall (server only)
         fallOccupantsSnapshot = new List<ulong>(occupants);
 
-        StartCoroutine(FallAndDisableRoutine());
+        // broadcast fall start time
+        fallStartServerTime.Value = NetworkManager.Singleton.ServerTime.Time;
+
+        // server will handle elimination + deactivate at the right time
+        StartCoroutine(ServerFallCompleteRoutine());
     }
 
-    private IEnumerator FallAndDisableRoutine()
+    private IEnumerator ServerFallCompleteRoutine()
     {
-        Vector3 startPos = transform.position;
-        Vector3 endPos = startPos + Vector3.down * fallDistance;
+        // wait for fall duration + delay (server uses real time)
+        yield return new WaitForSeconds(fallDuration + postFallDelay);
 
-        float elapsed = 0f;
+        // eliminate occupants (lose condition) - server only
+        EliminateOccupantsServer();
 
-        while (elapsed < fallDuration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / fallDuration);
-            transform.position = Vector3.Lerp(startPos, endPos, t);
-            yield return null;
-        }
-
-        if (postFallDelay > 0f)
-            yield return new WaitForSeconds(postFallDelay);
-
-        // eliminate occupants (lose condition)
-        EliminateOccupants();
-
-        // mark tile inactive for everyone (no despawn)
+        // mark tile inactive for everyone
         isActive.Value = false;
 
-        // server-side cleanup flags
-        IsFalling = false;
+        // cleanup server-side sets
         occupants.Clear();
         fallOccupantsSnapshot?.Clear();
+
+        // reset fall state (tile is now inactive anyway)
+        fallStartServerTime.Value = 0d;
     }
 
-    private void EliminateOccupants()
+    private void EliminateOccupantsServer()
     {
         if (!IsServer) return;
 
@@ -288,35 +300,84 @@ public class TileBehaviour : NetworkBehaviour
     private void OnActiveChanged(bool oldV, bool newV)
     {
         ApplyActiveState(newV);
+
+        // if deactivated mid-fall, make sure local state stops
+        if (!newV)
+        {
+            _localFallingVisual = false;
+        }
     }
 
     private void ApplyActiveState(bool active)
     {
-        // hide/show renderers
         if (renderersToDisable != null)
         {
             foreach (var r in renderersToDisable)
                 if (r != null) r.enabled = active;
         }
 
-        // enable/disable colliders (avoid standing on dead tiles)
         if (collidersToDisable != null)
         {
             foreach (var c in collidersToDisable)
                 if (c != null) c.enabled = active;
         }
 
-        // hide countdown text when inactive
         if (timeRemainingText != null)
             timeRemainingText.gameObject.SetActive(active);
 
-        // snap wobble back to baseline when inactive
         if (!active && visualRoot != null)
         {
             var p = visualRoot.localPosition;
             p.y = baseY;
             visualRoot.localPosition = p;
         }
+
+        if (active)
+        {
+            // snap tile back to initial pos on activation (clients too)
+            transform.SetPositionAndRotation(initialWorldPos, initialWorldRot);
+        }
+    }
+
+    // ---- Fall visuals sync ----
+    private void OnFallStartChanged(double oldV, double newV)
+    {
+        if (newV == 0d)
+        {
+            _localFallingVisual = false;
+            return;
+        }
+
+        // fall starts now (from server time)
+        _localFallingVisual = true;
+        _fallStartPos = transform.position;
+
+        // ensure wobble resets so fall looks clean
+        if (visualRoot != null)
+        {
+            var p = visualRoot.localPosition;
+            p.y = baseY;
+            visualRoot.localPosition = p;
+        }
+    }
+
+    private void AnimateFallLocal()
+    {
+        double start = fallStartServerTime.Value;
+        if (start == 0d) return;
+
+        double now = NetworkManager.Singleton != null
+            ? NetworkManager.Singleton.ServerTime.Time
+            : Time.timeAsDouble;
+
+        float elapsed = (float)(now - start);
+        float t = Mathf.Clamp01(elapsed / fallDuration);
+
+        Vector3 endPos = _fallStartPos + Vector3.down * fallDistance;
+        transform.position = Vector3.Lerp(_fallStartPos, endPos, t);
+
+        // After fall completes locally, we keep it at bottom until isActive turns false
+        // (server will flip isActive after postFallDelay)
     }
 
     // ---- Round reset API (server calls this) ----
@@ -329,8 +390,10 @@ public class TileBehaviour : NetworkBehaviour
         timeRemaining.Value = maxCumulativeOccupancy;
         isActive.Value = true;
 
-        IsFalling = false;
         occupants.Clear();
         fallOccupantsSnapshot?.Clear();
+
+        // stop fall everywhere
+        fallStartServerTime.Value = 0d;
     }
 }
