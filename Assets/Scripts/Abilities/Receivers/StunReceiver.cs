@@ -33,4 +33,12 @@ public class StunReceiver : NetworkBehaviour
             isStunned.Value = false;
         }
     }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ResetForNewRoundServerRpc()
+    {
+        if (!IsServer) return;
+        isStunned.Value = false;
+        stunEndTime = 0f;
+    }
 }

@@ -104,11 +104,17 @@ public class PlayerStatsManager : NetworkBehaviour
         if (!isAlive.Value) return;
         if (damage <= 0) return;
 
-        int newHealth = Mathf.Max(0, health.Value - damage);
+        var dmg = damage;
+
+        var dr = GetComponent<DamageReceiver>();
+        if (dr != null)
+            dmg = Mathf.CeilToInt(dmg * dr.DamageMultiplier);
+
+        int newHealth = Mathf.Max(0, health.Value - dmg);
         health.Value = newHealth;
         UpdateHealthUIClientRpc(newHealth);
         if (debugMode)
-            Debug.Log($"[SERVER] Player took {damage} damage. Health: {newHealth}/{maxHealth}");
+            Debug.Log($"[SERVER] Player took {dmg} damage. Health: {newHealth}/{maxHealth}");
 
         if (newHealth <= 0)
         {

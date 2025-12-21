@@ -263,6 +263,22 @@ public class LocalSpawner : NetworkBehaviour
             var stats = playerGO.GetComponent<PlayerStatsManager>();
             if (stats != null)
                 stats.ResetForNewRoundServerRpc();
+
+            var abilities = playerGO.GetComponent<AbilityRunner>();
+            if (abilities != null) abilities.ResetForNewRoundServerRpc();
+
+            var stun = playerGO.GetComponent<StunReceiver>();
+            if (stun != null) stun.ResetForNewRoundServerRpc();
+
+            var parry = playerGO.GetComponent<ParryReceiver>();
+            if (parry != null) parry.ResetForNewRoundServerRpc();
+
+            var buff = playerGO.GetComponent<BuffReceiver>();
+            if (buff != null) buff.ResetForNewRoundServerRpc();
+
+            var dr = playerGO.GetComponent<DamageReceiver>();
+            if (dr != null) dr.ResetForNewRoundServerRpc();
+            
             var tele = playerGO.GetComponent<PlayerTeleport>();
             if (tele != null)
             {
@@ -281,6 +297,9 @@ public class LocalSpawner : NetworkBehaviour
                 // fallback
                 playerGO.transform.SetPositionAndRotation(sp.position, sp.rotation);
             }
+
+
+
 
         }
     }

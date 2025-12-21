@@ -8,6 +8,8 @@ public class ThrowAbilityDefinition : AbilityDefinition
     public float spawnForward = 1.2f;
     public float spawnUp = 0.8f;
 
+    public int damage = 25;
+
     public override void ServerExecute(AbilityRunner runner)
     {
         if (projectilePrefab == null) return;
@@ -17,7 +19,7 @@ public class ThrowAbilityDefinition : AbilityDefinition
 
         var proj = Object.Instantiate(projectilePrefab, spawnPos, rot);
         proj.GetComponent<NetworkObject>().Spawn(true);
-        proj.InitServer(runner.transform.forward, runner.OwnerClientId);
+        proj.InitServer(runner.transform.forward, runner.OwnerClientId, damage);
 
         runner.PlayAbilityFxClientRpc(id);
     }

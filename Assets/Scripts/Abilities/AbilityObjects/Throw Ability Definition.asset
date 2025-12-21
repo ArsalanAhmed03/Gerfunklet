@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Throw Ability Definition
   m_EditorClassIdentifier: 
   id: 3
-  cooldownSeconds: 8
+  cooldownSeconds: 4
   projectilePrefab: {fileID: -1774017202085996492, guid: fb9059aaed590ad468a39c571075eeba, type: 3}
   spawnForward: 1.2
   spawnUp: 0.8
+  damage: 25

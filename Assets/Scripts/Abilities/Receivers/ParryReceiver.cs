@@ -30,4 +30,13 @@ public class ParryReceiver : NetworkBehaviour
         if (Time.time >= parryEndTime)
             isParryActive.Value = false;
     }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ResetForNewRoundServerRpc()
+    {
+        if (!IsServer) return;
+        isParryActive.Value = false;
+        parryEndTime = 0f;
+    }
+
 }

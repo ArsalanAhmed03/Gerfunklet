@@ -29,4 +29,13 @@ public class BuffReceiver : NetworkBehaviour
             moveSpeedMultiplier.Value = 1f;
         }
     }
+    
+    [ServerRpc(RequireOwnership = false)]
+    public void ResetForNewRoundServerRpc()
+    {
+        if (!IsServer) return;
+        moveSpeedMultiplier.Value = 1f;
+        buffEndTime = 0f;
+    }
+
 }

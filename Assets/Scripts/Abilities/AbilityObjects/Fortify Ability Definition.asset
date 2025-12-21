@@ -9,11 +9,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: be45aa489359d7e47910426f7516cf14, type: 3}
-  m_Name: Rally Ability Definition
+  m_Script: {fileID: 11500000, guid: bb23721ff76548340b57daaf842cfc30, type: 3}
+  m_Name: Fortify Ability Definition
   m_EditorClassIdentifier: 
-  id: 1
-  cooldownSeconds: 10
-  radius: 3.5
-  durationSeconds: 3
-  moveSpeedMultiplier: 1.3
+  id: 4
+  cooldownSeconds: 12
+  durationSeconds: 2.5
+  damageMultiplier: 0.6

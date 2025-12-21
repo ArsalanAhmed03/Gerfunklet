@@ -29,11 +29,12 @@ public class NetworkProjectile : NetworkBehaviour
             Debug.LogWarning("NetworkProjectile: LayerMask for 'Player' is 0. Make sure a layer named 'Player' exists and players are on it.");
     }
 
-    public void InitServer(Vector3 direction, ulong ownerClientId)
+    public void InitServer(Vector3 direction, ulong ownerClientId, int dmg)
     {
         dir = direction.normalized;
         dieAt = Time.time + lifeSeconds;
         _ownerClientId = ownerClientId;
+        damage = dmg;
     }
 
     private void Update()
@@ -70,11 +71,21 @@ public class NetworkProjectile : NetworkBehaviour
                     var stats = hit.collider.GetComponentInParent<PlayerStatsManager>();
                     if (stats != null)
                     {
+
+                        var parry = hit.collider.GetComponentInParent<ParryReceiver>();
+                        if (parry != null && parry.IsParryActive)
+                        {
+                            // Optional: punish attacker on successful parry (same pattern as Stomp)
+                            // var attackerStun = ??? (needs attacker reference; easiest is to just nullify hit for now)
+                            SafeDespawn();
+                            return;
+                        }
+                        
                         stats.TakeDamageServerRpc(damage);
 
-                        var stun = hit.collider.GetComponentInParent<StunReceiver>();
-                        if (stun != null)
-                            stun.ApplyStunServerRpc(stunDuration);
+                        // var stun = hit.collider.GetComponentInParent<StunReceiver>();
+                        // if (stun != null)
+                        //     stun.ApplyStunServerRpc(stunDuration);
                     }
 
                     SafeDespawn();
