@@ -12154,6 +12154,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   requiredPlayers: 2
   countdownSeconds: 3
+  loadoutSelectSeconds: 20
   roundsToWin: 2
   endScreenSeconds: 3
   overtimeLabelSeconds: 2
@@ -12179,6 +12180,12 @@ MonoBehaviour:
   PlayerBWins:
     m_InternalValue: 0
   LoadoutsLocked:
+    m_InternalValue: 0
+  PlayerAClientId:
+    m_InternalValue: 18446744073709551615
+  PlayerBClientId:
+    m_InternalValue: 18446744073709551615
+  LoadoutEndsAtServerTime:
     m_InternalValue: 0
 --- !u!4 &1359340385
 Transform:
@@ -14459,6 +14466,10 @@ PrefabInstance:
     - target: {fileID: 5255999745547897111, guid: 275b280c081e3406c94cdb832d875a59, type: 3}
       propertyPath: m_text
       value: X
+      objectReference: {fileID: 0}
+    - target: {fileID: 5255999745547897111, guid: 275b280c081e3406c94cdb832d875a59, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5255999745547897111, guid: 275b280c081e3406c94cdb832d875a59, type: 3}
       propertyPath: m_fontAsset
@@ -17742,6 +17753,7 @@ MonoBehaviour:
   spawnLocations:
   - {fileID: 707407314}
   - {fileID: 406477737}
+  minionAtpCost: 2
   debugMode: 0
 --- !u!1001 &1877935500
 PrefabInstance:

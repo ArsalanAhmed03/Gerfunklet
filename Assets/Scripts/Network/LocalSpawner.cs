@@ -21,6 +21,7 @@ public class LocalSpawner : NetworkBehaviour
 
     [SerializeField] private GameObject minionPrefab;
     [SerializeField] private Transform[] spawnLocations;
+    [SerializeField] private float minionAtpCost = 2f;
 
     [Header("Debug")]
     [SerializeField] private bool debugMode = true;
@@ -138,6 +139,17 @@ public class LocalSpawner : NetworkBehaviour
         {
             Debug.LogWarning($"Cannot spawn minion: player for client {clientId} not found.");
             return;
+        }
+
+        var atp = ownerPlayer.GetComponent<AtpResource>();
+        if (atp != null && minionAtpCost > 0f)
+        {
+            if (!atp.TrySpendServer(minionAtpCost))
+            {
+                if (debugMode)
+                    Debug.Log($"Minion spawn denied for client {clientId}: insufficient ATP or GCD.");
+                return;
+            }
         }
 
         Transform spawnLocation = ownerPlayer.transform;
