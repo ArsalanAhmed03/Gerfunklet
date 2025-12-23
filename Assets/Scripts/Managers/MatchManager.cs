@@ -1,16 +1,18 @@
 using Unity.Netcode;
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class MatchManager : NetworkBehaviour
 {
     public static MatchManager Instance { get; private set; }
 
-    // - RoundEnded = a single round finished, we will reset arena and start next round
+    // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
     public enum MatchPhase : int
     {
         WaitingForPlayers,
+        LoadoutSelect,
         Countdown,
         Playing,
         Overtime,
@@ -23,12 +25,15 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float countdownSeconds = 3f;
 
     [Header("Round / Match Rules")]
-    [SerializeField] private int roundsToWin = 2;            // Best-of-3 => first to 2
-    [SerializeField] private float endScreenSeconds = 3f;     // delay after round/match result shown
-    [SerializeField] private float overtimeLabelSeconds = 2f; // optional UI use
+    [SerializeField] private int roundsToWin = 2;             // Best-of-3 => first to 2
+    [SerializeField] private float endScreenSeconds = 3f;      // delay after round/match result shown
+    [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
 
     [Header("Match Timer")]
     [SerializeField] private float matchSeconds = 180f;
+
+    [Header("Ability Database (assign all defs here)")]
+    [SerializeField] private AbilityDefinition[] allAbilityDefs;
 
     public NetworkVariable<int> Phase = new NetworkVariable<int>(
         (int)MatchPhase.WaitingForPlayers,
@@ -56,7 +61,6 @@ public class MatchManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
-    // Round state (public so UI can read later if you want)
     public NetworkVariable<int> CurrentRound = new NetworkVariable<int>(
         1,
         NetworkVariableReadPermission.Everyone,
@@ -75,13 +79,20 @@ public class MatchManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    public NetworkVariable<bool> LoadoutsLocked = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private Dictionary<ulong, AbilityId[]> _playerLoadouts;
+    private Dictionary<AbilityId, AbilityDefinition> _defById;
+
     private bool _countdownStarted;
     private Coroutine _countdownRoutine;
 
-    // For round-end gating (prevents double-end calls)
     private bool _roundEnding;
 
-    // Capture race resolution
     private ulong _pendingWinner = ulong.MaxValue;
     private double _pendingWinnerTime = -1;
 
@@ -95,22 +106,51 @@ public class MatchManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
-        // Ensure clean defaults on server spawn (important when you stop playmode/rehost etc.)
+        BuildAbilityDatabaseServer();
+
+        _playerLoadouts = new Dictionary<ulong, AbilityId[]>();
+
         ResetMatchStateServer();
         Phase.Value = (int)MatchPhase.WaitingForPlayers;
         SetGameplayEnabledClientRpc(false);
+    }
+
+    private void BuildAbilityDatabaseServer()
+    {
+        _defById = new Dictionary<AbilityId, AbilityDefinition>();
+
+        if (allAbilityDefs == null) return;
+
+        for (int i = 0; i < allAbilityDefs.Length; i++)
+        {
+            var def = allAbilityDefs[i];
+            if (def == null) continue;
+
+            if (_defById.ContainsKey(def.id))
+            {
+                Debug.LogWarning($"MatchManager: duplicate AbilityDefinition id {def.id}. Keeping first, ignoring later.");
+                continue;
+            }
+
+            _defById.Add(def.id, def);
+        }
     }
 
     private void Update()
     {
         if (!IsServer) return;
 
-        // Only auto-start countdown when waiting (not during MatchEnded)
-        if ((MatchPhase)Phase.Value == MatchPhase.WaitingForPlayers)
-            TryStartCountdown();
+        var phase = (MatchPhase)Phase.Value;
+
+        if (phase == MatchPhase.WaitingForPlayers)
+        {
+            // When both players are present/spawned, move to LoadoutSelect
+            if (IsReadyPlayerCountMet())
+                EnterLoadoutSelectServer();
+        }
 
         // Match timer only ticks while live
-        if ((MatchPhase)Phase.Value == MatchPhase.Playing)
+        if (phase == MatchPhase.Playing)
         {
             MatchRemaining.Value -= Time.deltaTime;
             if (MatchRemaining.Value <= 0f)
@@ -119,6 +159,30 @@ public class MatchManager : NetworkBehaviour
                 Phase.Value = (int)MatchPhase.Overtime;
             }
         }
+    }
+
+    private bool IsReadyPlayerCountMet()
+    {
+        if (LocalSpawner.Instance == null) return false;
+        return LocalSpawner.Instance.GetSpawnedPlayerCount() >= requiredPlayers;
+    }
+
+    private void EnterLoadoutSelectServer()
+    {
+        if (!IsServer) return;
+
+        // Don’t re-enter if already in a later phase
+        var phase = (MatchPhase)Phase.Value;
+        if (phase != MatchPhase.WaitingForPlayers) return;
+
+        // Reset loadout state for a fresh match start
+        LoadoutsLocked.Value = false;
+        _playerLoadouts?.Clear();
+
+        // Ensure gameplay is disabled
+        SetGameplayEnabledClientRpc(false);
+
+        Phase.Value = (int)MatchPhase.LoadoutSelect;
     }
 
     private IEnumerator CountdownRoutine()
@@ -131,6 +195,7 @@ public class MatchManager : NetworkBehaviour
         Phase.Value = (int)MatchPhase.Countdown;
 
         MatchRemaining.Value = matchSeconds;
+
         float t = countdownSeconds;
         while (t > 0f)
         {
@@ -168,7 +233,6 @@ public class MatchManager : NetworkBehaviour
         return ulong.MaxValue;
     }
 
-    // Called by ObjectiveZone when a capture completes
     public void ReportCaptureServer(ulong winnerClientId)
     {
         if (!IsServer) return;
@@ -178,7 +242,6 @@ public class MatchManager : NetworkBehaviour
 
         double now = NetworkManager.ServerTime.Time;
 
-        // If no winner yet, store it and resolve end-of-frame (race window)
         if (_pendingWinner == ulong.MaxValue)
         {
             _pendingWinner = winnerClientId;
@@ -187,7 +250,6 @@ public class MatchManager : NetworkBehaviour
             return;
         }
 
-        // Someone else also completed in same frame-ish -> draw round
         if (_pendingWinner != winnerClientId && Mathf.Abs((float)(now - _pendingWinnerTime)) < 0.05f)
         {
             EndRoundServer(ulong.MaxValue); // draw
@@ -196,9 +258,8 @@ public class MatchManager : NetworkBehaviour
 
     private IEnumerator ResolveCaptureEndOfFrame()
     {
-        yield return null; // wait one frame to allow other zone to report too
+        yield return null;
 
-        // If we still have a pending winner and round is not already ending, end the round
         if (_pendingWinner != ulong.MaxValue)
         {
             var phase = (MatchPhase)Phase.Value;
@@ -216,51 +277,34 @@ public class MatchManager : NetworkBehaviour
         if (_roundEnding) return;
         _roundEnding = true;
 
-        // Disable gameplay immediately
         SetGameplayEnabledClientRpc(false);
-
-        // Mark round ended
         Phase.Value = (int)MatchPhase.RoundEnded;
 
-        // Update wins unless draw
         if (winnerClientId != ulong.MaxValue)
             RegisterRoundWinServer(winnerClientId);
 
-        // Decide if match is over
         bool matchOver =
             PlayerAWins.Value >= roundsToWin ||
             PlayerBWins.Value >= roundsToWin;
 
         if (matchOver)
         {
-            // Match ended
             Phase.Value = (int)MatchPhase.MatchEnded;
             WinnerClientId.Value = winnerClientId;
 
-            // Reuse your existing end UI
             ShowEndScreenClientRpc(winnerClientId, EndScreenKind.Match);
-
-            // Do NOT auto-reset into a new match.
-            // Wait for RequestRematchServerRpc().
             StartCoroutine(MatchEndCooldownRoutine());
         }
         else
         {
-            // Round ended (not match ended). For now we reuse the same UI.
-            // If you want separate round UI later, replace this with ShowRoundEndClientRpc().
             ShowEndScreenClientRpc(winnerClientId, EndScreenKind.Round);
-
             StartCoroutine(ResetRoundRoutine(startNewMatch: false));
         }
     }
 
     private IEnumerator MatchEndCooldownRoutine()
     {
-        // let players see final result
         yield return new WaitForSeconds(endScreenSeconds);
-
-        // keep everything ended until rematch requested
-        // allow a new countdown only after RequestRematchServerRpc triggers reset
         _roundEnding = false;
     }
 
@@ -298,74 +342,65 @@ public class MatchManager : NetworkBehaviour
         if (GameManager.Instance == null) return;
 
         if (kind == EndScreenKind.Round)
-        {
             GameManager.Instance.ShowRoundEnd(iWon, isDraw);
-        }
         else
-        {
             GameManager.Instance.ShowMatchEndWithDraw(iWon, isDraw);
-        }
     }
-
 
     [ServerRpc(RequireOwnership = false)]
     public void RequestRematchServerRpc()
     {
         if (!IsServer) return;
 
-        // Only allow rematch if match is ended (or if you want to allow anytime)
-        // This keeps flow clean.
         ResetMatchStateServer();
         StartCoroutine(ResetRoundRoutine(startNewMatch: true));
     }
 
     private IEnumerator ResetRoundRoutine(bool startNewMatch)
     {
-        // wait so players can see result (round or match if you call this there)
         yield return new WaitForSeconds(endScreenSeconds);
 
-        // reset objective capture resolution state
         _pendingWinner = ulong.MaxValue;
         _pendingWinnerTime = -1;
 
-        // reset countdown state
         _countdownStarted = false;
         _countdownRoutine = null;
 
-        // Clear gameplay
         SetGameplayEnabledClientRpc(false);
 
-        // If we are starting a brand new match (rematch), reset wins/round and winner
         if (startNewMatch)
         {
             ResetMatchStateServer();
+
+            // New match should go to LoadoutSelect again (fresh choices)
+            LoadoutsLocked.Value = false;
+            _playerLoadouts?.Clear();
+
+            Phase.Value = (int)MatchPhase.LoadoutSelect;
         }
         else
         {
-            // Starting next round (same match)
             CurrentRound.Value = Mathf.Max(1, CurrentRound.Value + 1);
-            WinnerClientId.Value = ulong.MaxValue; // keep unused unless MatchEnded
+            WinnerClientId.Value = ulong.MaxValue;
+
+            // Between rounds, keep loadouts locked and immediately start countdown
+            Phase.Value = (int)MatchPhase.Countdown;
         }
 
-        // reset phase before rebuilding state so UI can show "Waiting"
-        Phase.Value = (int)MatchPhase.WaitingForPlayers;
-
-        // despawn all minions (safe even if you aren't using them much yet)
         DespawnAllMinionsServer();
-
-        // reset tiles + zones
         ResetAllTilesServer();
         ResetAllZonesServer();
 
-        // respawn players at spawns + reset stats
         if (LocalSpawner.Instance != null)
             LocalSpawner.Instance.RespawnAllPlayersAtSpawnsServer();
 
-        // allow next round to end again
         _roundEnding = false;
 
-        // start countdown again
-        TryStartCountdown();
+        if (!startNewMatch)
+        {
+            // Start next round countdown
+            TryStartCountdown();
+        }
     }
 
     private void ResetMatchStateServer()
@@ -405,7 +440,6 @@ public class MatchManager : NetworkBehaviour
             z.progress01.Value = 0f;
             z.contested.Value = false;
             z.currentAttackerClientId.Value = ulong.MaxValue;
-            // keep owner assignment as-is; it will remain correct
         }
     }
 
@@ -413,22 +447,102 @@ public class MatchManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
-        var tiles = FindObjectsByType<TileBehaviour>(FindObjectsSortMode.None);
+        var tiles = FindObjectsOfType<TileBehaviour>(true);
         foreach (var t in tiles)
-        {
             t.ResetTileForNewRoundServer();
-        }
     }
 
     private void TryStartCountdown()
     {
         if (_countdownStarted) return;
+
+        var phase = (MatchPhase)Phase.Value;
+        if (phase != MatchPhase.Countdown) return;
+
         if (LocalSpawner.Instance == null) return;
         if (LocalSpawner.Instance.GetSpawnedPlayerCount() < requiredPlayers) return;
 
-        // Don't start a new countdown if match ended
-        if ((MatchPhase)Phase.Value == MatchPhase.MatchEnded) return;
+        // Do not start countdown until loadouts are locked for the match
+        if (!LoadoutsLocked.Value) return;
 
         _countdownRoutine = StartCoroutine(CountdownRoutine());
     }
+
+    private bool IsAllowedAbility(AbilityId id)
+    {
+        // Minimal rule: only abilities that exist in the database are allowed
+        return _defById != null && _defById.ContainsKey(id);
+    }
+
+    private AbilityDefinition GetDef(AbilityId id)
+    {
+        if (_defById != null && _defById.TryGetValue(id, out var def))
+            return def;
+        return null;
+    }
+
+    private bool TryGetPlayerAbilityRunner(ulong clientId, out AbilityRunner runner)
+    {
+        runner = null;
+
+        if (NetworkManager.Singleton == null) return false;
+        if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var cc)) return false;
+
+        var playerObj = cc.PlayerObject;
+        if (playerObj == null) return false;
+
+        runner = playerObj.GetComponent<AbilityRunner>();
+        return runner != null;
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void SubmitLoadoutServerRpc(AbilityId[] chosenAbilities, ServerRpcParams rpcParams = default)
+    {
+        if (!IsServer) return;
+
+        ulong sender = rpcParams.Receive.SenderClientId;
+
+        var phase = (MatchPhase)Phase.Value;
+        Debug.Log($"[Loadout][SERVER] Submit from {sender} phase={phase} locked={LoadoutsLocked.Value} len={(chosenAbilities == null ? -1 : chosenAbilities.Length)}");
+
+        if (phase != MatchPhase.LoadoutSelect) return;
+        if (LoadoutsLocked.Value) return;
+        if (chosenAbilities == null || chosenAbilities.Length != 4) return;
+
+        var seen = new HashSet<AbilityId>();
+        for (int i = 0; i < chosenAbilities.Length; i++)
+        {
+            if (!seen.Add(chosenAbilities[i])) return;
+            if (!IsAllowedAbility(chosenAbilities[i])) return;
+        }
+
+        if (_playerLoadouts == null)
+            _playerLoadouts = new Dictionary<ulong, AbilityId[]>();
+
+        _playerLoadouts[sender] = chosenAbilities;
+
+        Debug.Log($"[Loadout][SERVER] Stored loadout for {sender}. totalSubmitted={_playerLoadouts.Count}/{requiredPlayers}");
+
+        if (TryGetPlayerAbilityRunner(sender, out var runner))
+        {
+            runner.slots[0] = GetDef(chosenAbilities[0]);
+            runner.slots[1] = GetDef(chosenAbilities[1]);
+            runner.slots[2] = GetDef(chosenAbilities[2]);
+            runner.slots[3] = GetDef(chosenAbilities[3]);
+            runner.ResetForNewRoundServerRpc();
+        }
+
+        if (_playerLoadouts.Count >= requiredPlayers)
+        {
+            LoadoutsLocked.Value = true;
+
+            Debug.Log("[Loadout][SERVER] Both submitted. Locking and starting countdown.");
+
+            // Start countdown immediately (don’t depend on Update gates)
+            _countdownStarted = false;
+            if (_countdownRoutine != null) StopCoroutine(_countdownRoutine);
+            _countdownRoutine = StartCoroutine(CountdownRoutine());
+        }
+    }
+
 }
