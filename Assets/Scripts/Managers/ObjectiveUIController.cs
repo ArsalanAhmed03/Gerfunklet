@@ -1,64 +1,175 @@
 using Unity.Netcode;
 using UnityEngine;
+using System.Collections;
 
 public class ObjectiveUIController : MonoBehaviour
 {
-    private ObjectiveZone GetMyZone()
+    private ObjectiveZone _zoneA;
+    private ObjectiveZone _zoneB;
+    private ObjectiveZone _myZone;
+    private ObjectiveZone _enemyZone;
+    private MatchManager _match;
+    private bool _zonesBound;
+    private bool _matchBound;
+    private Coroutine _bindRoutine;
+
+    private void OnEnable()
     {
-        var gm = GameManager.Instance;
-        if (gm == null) return null;
-
-        if (NetworkManager.Singleton == null) return null;
-        ulong myId = NetworkManager.Singleton.LocalClientId;
-
-        if (gm.zoneA != null && gm.zoneA.OwnerClientId == myId) return gm.zoneA;
-        if (gm.zoneB != null && gm.zoneB.OwnerClientId == myId) return gm.zoneB;
-
-        return null;
+        _bindRoutine = StartCoroutine(BindWhenReady());
     }
 
-    private ObjectiveZone GetEnemyZone()
+    private void OnDisable()
     {
-        var gm = GameManager.Instance;
-        if (gm == null) return null;
+        if (_bindRoutine != null)
+        {
+            StopCoroutine(_bindRoutine);
+            _bindRoutine = null;
+        }
 
-        if (NetworkManager.Singleton == null) return null;
-        ulong myId = NetworkManager.Singleton.LocalClientId;
-
-        if (gm.zoneA != null && gm.zoneA.OwnerClientId != myId) return gm.zoneA;
-        if (gm.zoneB != null && gm.zoneB.OwnerClientId != myId) return gm.zoneB;
-
-        return null;
+        UnbindZones();
+        UnbindMatch();
     }
 
-    private void Update()
+    private IEnumerator BindWhenReady()
+    {
+        while (!TryBind())
+            yield return new WaitForSeconds(0.25f);
+    }
+
+    private bool TryBind()
+    {
+        var gm = GameManager.Instance;
+        if (gm == null) return false;
+        if (NetworkManager.Singleton == null) return false;
+
+        BindMatch();
+        BindZones(gm.zoneA, gm.zoneB);
+
+        RefreshZoneUI();
+        UpdateMatchTimer();
+        return _zonesBound && _matchBound;
+    }
+
+    private void BindZones(ObjectiveZone zoneA, ObjectiveZone zoneB)
+    {
+        if (_zonesBound && _zoneA == zoneA && _zoneB == zoneB) return;
+
+        UnbindZones();
+
+        _zoneA = zoneA;
+        _zoneB = zoneB;
+
+        if (_zoneA != null) SubscribeZone(_zoneA);
+        if (_zoneB != null) SubscribeZone(_zoneB);
+
+        _zonesBound = _zoneA != null && _zoneB != null;
+    }
+
+    private void UnbindZones()
+    {
+        if (_zoneA != null) UnsubscribeZone(_zoneA);
+        if (_zoneB != null) UnsubscribeZone(_zoneB);
+
+        _zoneA = null;
+        _zoneB = null;
+        _myZone = null;
+        _enemyZone = null;
+        _zonesBound = false;
+    }
+
+    private void SubscribeZone(ObjectiveZone zone)
+    {
+        zone.ownerClientId.OnValueChanged += HandleOwnerChanged;
+        zone.progress01.OnValueChanged += HandleProgressChanged;
+        zone.contested.OnValueChanged += HandleContestedChanged;
+    }
+
+    private void UnsubscribeZone(ObjectiveZone zone)
+    {
+        zone.ownerClientId.OnValueChanged -= HandleOwnerChanged;
+        zone.progress01.OnValueChanged -= HandleProgressChanged;
+        zone.contested.OnValueChanged -= HandleContestedChanged;
+    }
+
+    private void HandleOwnerChanged(ulong oldValue, ulong newValue)
+    {
+        RefreshZoneUI();
+    }
+
+    private void HandleProgressChanged(float oldValue, float newValue)
+    {
+        RefreshZoneUI();
+    }
+
+    private void HandleContestedChanged(bool oldValue, bool newValue)
+    {
+        RefreshZoneUI();
+    }
+
+    private void BindMatch()
+    {
+        if (_matchBound) return;
+        if (MatchManager.Instance == null) return;
+
+        _match = MatchManager.Instance;
+        _match.OnPhaseChanged += HandlePhaseChanged;
+        _match.MatchRemaining.OnValueChanged += HandleMatchRemainingChanged;
+        _matchBound = true;
+    }
+
+    private void UnbindMatch()
+    {
+        if (!_matchBound || _match == null) return;
+
+        _match.OnPhaseChanged -= HandlePhaseChanged;
+        _match.MatchRemaining.OnValueChanged -= HandleMatchRemainingChanged;
+        _match = null;
+        _matchBound = false;
+    }
+
+    private void HandlePhaseChanged(MatchManager.MatchPhase phase)
+    {
+        UpdateMatchTimer();
+    }
+
+    private void HandleMatchRemainingChanged(float oldValue, float newValue)
+    {
+        UpdateMatchTimer();
+    }
+
+    private void RefreshZoneUI()
     {
         var gm = GameManager.Instance;
         if (gm == null) return;
-
         if (NetworkManager.Singleton == null) return;
 
-        var myZone = GetMyZone();
-        var enemyZone = GetEnemyZone();
+        ulong myId = NetworkManager.Singleton.LocalClientId;
+        _myZone = null;
+        _enemyZone = null;
 
-        // If owner isn't synced yet (e.g., on first frames), don't show misleading UI.
-        if (myZone == null || enemyZone == null)
+        if (_zoneA != null && _zoneA.OwnerClientId != ulong.MaxValue)
+        {
+            if (_zoneA.OwnerClientId == myId) _myZone = _zoneA;
+            else _enemyZone = _zoneA;
+        }
+
+        if (_zoneB != null && _zoneB.OwnerClientId != ulong.MaxValue)
+        {
+            if (_zoneB.OwnerClientId == myId) _myZone = _zoneB;
+            else _enemyZone = _zoneB;
+        }
+
+        if (_myZone == null || _enemyZone == null)
         {
             if (gm.dangerCaptureBar != null) gm.dangerCaptureBar.gameObject.SetActive(false);
             if (gm.myCaptureBar != null) gm.myCaptureBar.gameObject.SetActive(false);
             if (gm.captureStateText != null) gm.captureStateText.gameObject.SetActive(false);
-
-            UpdateMatchTimer(gm);
             return;
         }
 
-        // Red = enemy capturing my zone
-        float danger = myZone.progress01.Value;
+        float danger = _myZone.progress01.Value;
+        float myCap = _enemyZone.progress01.Value;
 
-        // Blue = I am capturing enemy zone
-        float myCap = enemyZone.progress01.Value;
-
-        // ---- Sliders ----
         if (gm.dangerCaptureBar != null)
         {
             gm.dangerCaptureBar.value = danger;
@@ -71,14 +182,10 @@ public class ObjectiveUIController : MonoBehaviour
             gm.myCaptureBar.gameObject.SetActive(myCap > 0f);
         }
 
-        // ---- State text ----
         if (gm.captureStateText != null)
         {
             bool race = danger > 0f && myCap > 0f;
-
-            bool contested =
-                (myZone != null && myZone.contested.Value) ||
-                (enemyZone != null && enemyZone.contested.Value);
+            bool contested = _myZone.contested.Value || _enemyZone.contested.Value;
 
             if (race)
                 gm.captureStateText.text = "RACE";
@@ -89,22 +196,21 @@ public class ObjectiveUIController : MonoBehaviour
 
             gm.captureStateText.gameObject.SetActive(race || contested);
         }
-
-        UpdateMatchTimer(gm);
     }
 
-    private void UpdateMatchTimer(GameManager gm)
+    private void UpdateMatchTimer()
     {
-        if (gm.matchTimerText == null) return;
-        if (MatchManager.Instance == null) return;
+        var gm = GameManager.Instance;
+        if (gm == null || gm.matchTimerText == null) return;
+        if (_match == null) return;
 
-        if (MatchManager.Instance.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
+        if (_match.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
         {
             gm.matchTimerText.text = "OVERTIME";
             return;
         }
 
-        float t = Mathf.Max(0f, MatchManager.Instance.MatchRemaining.Value);
+        float t = Mathf.Max(0f, _match.MatchRemaining.Value);
         int seconds = Mathf.CeilToInt(t);
         int mins = seconds / 60;
         int secs = seconds % 60;

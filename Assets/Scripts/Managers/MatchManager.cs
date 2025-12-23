@@ -13,6 +13,7 @@ public class MatchManager : NetworkBehaviour
     public event Action<int, int> OnScoreChanged;
 
     public float LoadoutSelectSeconds => loadoutSelectSeconds;
+    public bool IsTeamAssignmentReady => PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue;
 
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
@@ -377,16 +378,41 @@ public class MatchManager : NetworkBehaviour
 
     private ulong GetOtherClient(ulong deadClientId)
     {
-        if (PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue)
-        {
-            if (deadClientId == PlayerAClientId.Value) return PlayerBClientId.Value;
-            if (deadClientId == PlayerBClientId.Value) return PlayerAClientId.Value;
-        }
-
-        foreach (var c in NetworkManager.Singleton.ConnectedClientsList)
-            if (c.ClientId != deadClientId) return c.ClientId;
+        if (TryGetOpponentClientId(deadClientId, out var opponent))
+            return opponent;
 
         return ulong.MaxValue;
+    }
+
+    public bool TryGetOpponentClientId(ulong clientId, out ulong opponentId)
+    {
+        opponentId = ulong.MaxValue;
+
+        if (PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue)
+        {
+            if (clientId == PlayerAClientId.Value) { opponentId = PlayerBClientId.Value; return true; }
+            if (clientId == PlayerBClientId.Value) { opponentId = PlayerAClientId.Value; return true; }
+        }
+
+        if (NetworkManager.Singleton == null) return false;
+
+        foreach (var c in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            if (c.ClientId != clientId)
+            {
+                opponentId = c.ClientId;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool TryGetTeamClientIds(out ulong playerAClientId, out ulong playerBClientId)
+    {
+        playerAClientId = PlayerAClientId.Value;
+        playerBClientId = PlayerBClientId.Value;
+        return playerAClientId != ulong.MaxValue && playerBClientId != ulong.MaxValue;
     }
 
     public void ReportCaptureServer(ulong winnerClientId)
