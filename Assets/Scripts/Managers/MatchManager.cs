@@ -93,6 +93,18 @@ public class MatchManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    public NetworkVariable<ulong> PlayerAClientId = new NetworkVariable<ulong>(
+        ulong.MaxValue,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    public NetworkVariable<ulong> PlayerBClientId = new NetworkVariable<ulong>(
+        ulong.MaxValue,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     public NetworkVariable<double> LoadoutEndsAtServerTime = new NetworkVariable<double>(
         0d,
         NetworkVariableReadPermission.Everyone,
@@ -127,6 +139,12 @@ public class MatchManager : NetworkBehaviour
             return;
         }
 
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+        }
+
         BuildAbilityDatabaseServer();
 
         _playerLoadouts = new Dictionary<ulong, AbilityId[]>();
@@ -140,6 +158,12 @@ public class MatchManager : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        if (IsServer && NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        }
+
         UnbindNetworkVariableEvents();
     }
 
@@ -173,6 +197,7 @@ public class MatchManager : NetworkBehaviour
         if (phase == MatchPhase.WaitingForPlayers)
         {
             // When both players are present/spawned, move to LoadoutSelect
+            AssignTeamsIfNeededServer();
             if (IsReadyPlayerCountMet())
                 EnterLoadoutSelectServer();
         }
@@ -260,12 +285,46 @@ public class MatchManager : NetworkBehaviour
         // Reset loadout state for a fresh match start
         LoadoutsLocked.Value = false;
         _playerLoadouts?.Clear();
+        AssignTeamsIfNeededServer();
         SetLoadoutEndTimeServer();
 
         // Ensure gameplay is disabled
         SetGameplayEnabledClientRpc(false);
 
         Phase.Value = (int)MatchPhase.LoadoutSelect;
+    }
+
+    private void OnClientConnected(ulong clientId)
+    {
+        if (!IsServer) return;
+        AssignTeamsIfNeededServer();
+    }
+
+    private void OnClientDisconnected(ulong clientId)
+    {
+        if (!IsServer) return;
+
+        if (PlayerAClientId.Value == clientId)
+            PlayerAClientId.Value = ulong.MaxValue;
+        if (PlayerBClientId.Value == clientId)
+            PlayerBClientId.Value = ulong.MaxValue;
+    }
+
+    private void AssignTeamsIfNeededServer()
+    {
+        if (!IsServer) return;
+        if (NetworkManager.Singleton == null) return;
+        if (LocalSpawner.Instance == null) return;
+        if (LocalSpawner.Instance.GetSpawnedPlayerCount() < requiredPlayers) return;
+
+        if (PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue)
+            return;
+
+        var clients = NetworkManager.Singleton.ConnectedClientsList;
+        if (clients.Count < requiredPlayers) return;
+
+        PlayerAClientId.Value = clients[0].ClientId;
+        PlayerBClientId.Value = clients[1].ClientId;
     }
 
     private void SetLoadoutEndTimeServer()
@@ -318,6 +377,12 @@ public class MatchManager : NetworkBehaviour
 
     private ulong GetOtherClient(ulong deadClientId)
     {
+        if (PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue)
+        {
+            if (deadClientId == PlayerAClientId.Value) return PlayerBClientId.Value;
+            if (deadClientId == PlayerBClientId.Value) return PlayerAClientId.Value;
+        }
+
         foreach (var c in NetworkManager.Singleton.ConnectedClientsList)
             if (c.ClientId != deadClientId) return c.ClientId;
 
@@ -401,11 +466,17 @@ public class MatchManager : NetworkBehaviour
 
     private void RegisterRoundWinServer(ulong winnerClientId)
     {
-        var clients = NetworkManager.Singleton.ConnectedClientsList;
-        if (clients.Count < 2) return;
+        ulong a = PlayerAClientId.Value;
+        ulong b = PlayerBClientId.Value;
 
-        ulong a = clients[0].ClientId;
-        ulong b = clients[1].ClientId;
+        if (a == ulong.MaxValue || b == ulong.MaxValue)
+        {
+            var clients = NetworkManager.Singleton.ConnectedClientsList;
+            if (clients.Count < 2) return;
+
+            a = clients[0].ClientId;
+            b = clients[1].ClientId;
+        }
 
         if (winnerClientId == a) PlayerAWins.Value++;
         else if (winnerClientId == b) PlayerBWins.Value++;

@@ -149,11 +149,12 @@ public class ObjectiveZone : NetworkBehaviour
         if (LocalSpawner.Instance == null) return;
         if (LocalSpawner.Instance.GetSpawnedPlayerCount() < 2) return;
 
-        var clients = NetworkManager.Singleton.ConnectedClientsList;
-        if (clients.Count < 2) return;
+        if (MatchManager.Instance == null) return;
 
-        ulong a = clients[0].ClientId;
-        ulong b = clients[1].ClientId;
+        ulong a = MatchManager.Instance.PlayerAClientId.Value;
+        ulong b = MatchManager.Instance.PlayerBClientId.Value;
+
+        if (a == ulong.MaxValue || b == ulong.MaxValue) return;
 
         // Decide owner by position (left/right)
         ownerClientId.Value = transform.position.x <= 0f ? a : b;
