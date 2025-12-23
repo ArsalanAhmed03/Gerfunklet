@@ -33,6 +33,9 @@ public class GameManager : MonoBehaviour
 
     public bool GameplayEnabled { get; private set; } = false;
 
+    private MatchManager _match;
+    private bool _boundToMatch;
+
     private void Awake()
     {
         if (Instance == null)
@@ -48,40 +51,31 @@ public class GameManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        UnbindMatchManager();
+
         if (Instance == this)
             Instance = null;
     }
 
+    private void OnEnable()
+    {
+        TryBindMatchManager();
+    }
+
+    private void OnDisable()
+    {
+        UnbindMatchManager();
+    }
+
     private void Update()
     {
-        // Optional live UI refresh (simple + safe)
-        if (MatchManager.Instance == null) return;
-
-        // Phase/status text
-        if (statusText != null)
-        {
-            var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
-            statusText.text = phase.ToString();
-        }
-
-        // Round + score UI (only if you assigned the text fields)
-        if (roundText != null)
-            roundText.text = $"Round {MatchManager.Instance.CurrentRound.Value}";
-
-        if (scoreText != null)
-        {
-            // Score uses PlayerAWins/PlayerBWins based on join order (clients[0] vs clients[1] on server).
-            // For UI, we just display A-B consistently.
-            scoreText.text = $"Score: {MatchManager.Instance.PlayerAWins.Value} - {MatchManager.Instance.PlayerBWins.Value}";
-        }
+        if (!_boundToMatch)
+            TryBindMatchManager();
     }
 
     public void SetGameplayEnabled(bool enabled)
     {
         GameplayEnabled = enabled;
-
-        if (statusText != null)
-            statusText.text = enabled ? "Playing" : "Not Playing";
     }
 
     // Called by MatchManager for FINAL match end (current behaviour)
@@ -114,5 +108,54 @@ public class GameManager : MonoBehaviour
 
         if (roundResultText != null)
             roundResultText.text = "";
+    }
+
+    private void TryBindMatchManager()
+    {
+        if (_boundToMatch) return;
+        if (MatchManager.Instance == null) return;
+
+        _match = MatchManager.Instance;
+        _match.OnPhaseChanged += HandlePhaseChanged;
+        _match.OnRoundChanged += HandleRoundChanged;
+        _match.OnScoreChanged += HandleScoreChanged;
+        _boundToMatch = true;
+
+        HandlePhaseChanged((MatchManager.MatchPhase)_match.Phase.Value);
+        HandleRoundChanged(_match.CurrentRound.Value);
+        HandleScoreChanged(_match.PlayerAWins.Value, _match.PlayerBWins.Value);
+    }
+
+    private void UnbindMatchManager()
+    {
+        if (!_boundToMatch || _match == null) return;
+
+        _match.OnPhaseChanged -= HandlePhaseChanged;
+        _match.OnRoundChanged -= HandleRoundChanged;
+        _match.OnScoreChanged -= HandleScoreChanged;
+        _boundToMatch = false;
+        _match = null;
+    }
+
+    private void HandlePhaseChanged(MatchManager.MatchPhase phase)
+    {
+        if (statusText != null)
+            statusText.text = phase.ToString();
+    }
+
+    private void HandleRoundChanged(int round)
+    {
+        if (roundText != null)
+            roundText.text = $"Round {round}";
+    }
+
+    private void HandleScoreChanged(int playerAWins, int playerBWins)
+    {
+        if (scoreText != null)
+        {
+            // Score uses PlayerAWins/PlayerBWins based on join order (clients[0] vs clients[1] on server).
+            // For UI, we just display A-B consistently.
+            scoreText.text = $"Score: {playerAWins} - {playerBWins}";
+        }
     }
 }

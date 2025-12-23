@@ -1,11 +1,16 @@
 using Unity.Netcode;
 using UnityEngine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 
 public class MatchManager : NetworkBehaviour
 {
     public static MatchManager Instance { get; private set; }
+    public event Action<MatchPhase> OnPhaseChanged;
+    public event Action<bool> OnLoadoutsLockedChanged;
+    public event Action<int> OnRoundChanged;
+    public event Action<int, int> OnScoreChanged;
 
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
@@ -95,6 +100,7 @@ public class MatchManager : NetworkBehaviour
 
     private ulong _pendingWinner = ulong.MaxValue;
     private double _pendingWinnerTime = -1;
+    private bool _nvEventsBound;
 
     private void Awake()
     {
@@ -104,7 +110,13 @@ public class MatchManager : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer) return;
+        BindNetworkVariableEvents();
+
+        if (!IsServer)
+        {
+            NotifyInitialState();
+            return;
+        }
 
         BuildAbilityDatabaseServer();
 
@@ -113,6 +125,13 @@ public class MatchManager : NetworkBehaviour
         ResetMatchStateServer();
         Phase.Value = (int)MatchPhase.WaitingForPlayers;
         SetGameplayEnabledClientRpc(false);
+
+        NotifyInitialState();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        UnbindNetworkVariableEvents();
     }
 
     private void BuildAbilityDatabaseServer()
@@ -159,6 +178,60 @@ public class MatchManager : NetworkBehaviour
                 Phase.Value = (int)MatchPhase.Overtime;
             }
         }
+    }
+
+    private void BindNetworkVariableEvents()
+    {
+        if (_nvEventsBound) return;
+
+        Phase.OnValueChanged += HandlePhaseChanged;
+        LoadoutsLocked.OnValueChanged += HandleLoadoutsLockedChanged;
+        CurrentRound.OnValueChanged += HandleRoundChanged;
+        PlayerAWins.OnValueChanged += HandleScoreChanged;
+        PlayerBWins.OnValueChanged += HandleScoreChanged;
+
+        _nvEventsBound = true;
+    }
+
+    private void UnbindNetworkVariableEvents()
+    {
+        if (!_nvEventsBound) return;
+
+        Phase.OnValueChanged -= HandlePhaseChanged;
+        LoadoutsLocked.OnValueChanged -= HandleLoadoutsLockedChanged;
+        CurrentRound.OnValueChanged -= HandleRoundChanged;
+        PlayerAWins.OnValueChanged -= HandleScoreChanged;
+        PlayerBWins.OnValueChanged -= HandleScoreChanged;
+
+        _nvEventsBound = false;
+    }
+
+    private void NotifyInitialState()
+    {
+        OnPhaseChanged?.Invoke((MatchPhase)Phase.Value);
+        OnLoadoutsLockedChanged?.Invoke(LoadoutsLocked.Value);
+        OnRoundChanged?.Invoke(CurrentRound.Value);
+        OnScoreChanged?.Invoke(PlayerAWins.Value, PlayerBWins.Value);
+    }
+
+    private void HandlePhaseChanged(int oldValue, int newValue)
+    {
+        OnPhaseChanged?.Invoke((MatchPhase)newValue);
+    }
+
+    private void HandleLoadoutsLockedChanged(bool oldValue, bool newValue)
+    {
+        OnLoadoutsLockedChanged?.Invoke(newValue);
+    }
+
+    private void HandleRoundChanged(int oldValue, int newValue)
+    {
+        OnRoundChanged?.Invoke(newValue);
+    }
+
+    private void HandleScoreChanged(int oldValue, int newValue)
+    {
+        OnScoreChanged?.Invoke(PlayerAWins.Value, PlayerBWins.Value);
     }
 
     private bool IsReadyPlayerCountMet()

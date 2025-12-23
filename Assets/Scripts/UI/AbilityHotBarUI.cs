@@ -9,7 +9,8 @@ public class AbilityHotbarUI : MonoBehaviour
     [SerializeField] private AbilityCatalog iconDb;
 
     private AbilityRunner _localRunner;
-    private AbilityDefinition[] _last = new AbilityDefinition[4];
+    private ulong _boundPlayerObjectId = ulong.MaxValue;
+    private bool _forceRefresh;
 
     private void Awake()
     {
@@ -24,17 +25,20 @@ public class AbilityHotbarUI : MonoBehaviour
 
     private void BindIfNeeded()
     {
-        if (NetworkManager.Singleton == null) return;
-        if (!NetworkManager.Singleton.IsClient) return;
+        var nm = NetworkManager.Singleton;
+        if (nm == null || !nm.IsClient) return;
 
-        if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(
-                NetworkManager.Singleton.LocalClientId,
-                out var cc))
-            return;
+        var playerObj = nm.SpawnManager.GetLocalPlayerObject();
+        if (playerObj == null) return;
 
-        if (cc.PlayerObject == null) return;
+        var no = playerObj.GetComponent<NetworkObject>();
+        ulong objectId = no != null ? no.NetworkObjectId : ulong.MaxValue;
 
-        _localRunner = cc.PlayerObject.GetComponent<AbilityRunner>();
+        if (_localRunner != null && _boundPlayerObjectId == objectId) return;
+
+        _localRunner = playerObj.GetComponent<AbilityRunner>();
+        _boundPlayerObjectId = objectId;
+        _forceRefresh = true;
     }
 
     private AbilityId[] _lastIds = new AbilityId[4];
@@ -42,6 +46,13 @@ public class AbilityHotbarUI : MonoBehaviour
     private void RefreshIconsIfNeeded()
     {
         if (_localRunner == null) return;
+
+        if (_forceRefresh)
+        {
+            for (int i = 0; i < _lastIds.Length; i++)
+                _lastIds[i] = (AbilityId)int.MinValue;
+            _forceRefresh = false;
+        }
 
         for (int i = 0; i < 4; i++)
         {
@@ -53,6 +64,12 @@ public class AbilityHotbarUI : MonoBehaviour
             if (buttonIcons[i] == null) continue;
 
             if (id == AbilityId.None)
+            {
+                buttonIcons[i].enabled = false;
+                continue;
+            }
+
+            if (iconDb == null)
             {
                 buttonIcons[i].enabled = false;
                 continue;
