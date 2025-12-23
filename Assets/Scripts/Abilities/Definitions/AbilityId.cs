@@ -5,5 +5,6 @@ public enum AbilityId
     Parry = 2,
     Throw = 3,
 
-    Fortify = 4
+    Fortify = 4,
+    None = -1,
 }

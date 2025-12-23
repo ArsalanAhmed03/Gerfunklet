@@ -108,7 +108,10 @@ public class LocalSpawner : NetworkBehaviour
         NetworkObject networkObject = playerInstance.GetComponent<NetworkObject>();
         if (networkObject != null)
         {
-            networkObject.SpawnWithOwnership(clientId);
+            // networkObject.SpawnWithOwnership(clientId);
+            networkObject.SpawnAsPlayerObject(clientId, true);
+            Debug.Log($"[Spawner] client={clientId} PlayerObjectNull={NetworkManager.Singleton.ConnectedClients[clientId].PlayerObject==null}");
+
             spawnedPlayers[clientId] = playerInstance;
 
             if (debugMode)

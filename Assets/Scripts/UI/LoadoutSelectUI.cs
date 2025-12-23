@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -12,14 +13,14 @@ public class LoadoutSelectUI : MonoBehaviour
 
     [Header("Popup")]
     [SerializeField] private AbilityPickerPopupUI pickerPopup;
-    [SerializeField] private AbilityIconDatabase iconDb;
+    [SerializeField] private AbilityCatalog iconDb;
 
     [Header("Submit")]
     [SerializeField] private Button lockInButton;
     [SerializeField] private TextMeshProUGUI statusText;
 
     [Header("Countdown UI")]
-    [SerializeField] private Slider countdownSlider; // 0..1 (local loadout timer visual)
+    [SerializeField] private Slider countdownSlider;
 
     [Header("Rules")]
     [SerializeField] private float loadoutSelectSeconds = 20f;
@@ -54,7 +55,6 @@ public class LoadoutSelectUI : MonoBehaviour
 
         if (root != null) root.SetActive(show);
 
-        // IMPORTANT: if we are not in LoadoutSelect, force-close popup and stop here
         if (!show)
         {
             if (pickerPopup != null) pickerPopup.Hide();
@@ -66,7 +66,6 @@ public class LoadoutSelectUI : MonoBehaviour
         if (!_submitted && _loadoutEndsAtLocal <= 0f)
             _loadoutEndsAtLocal = Time.time + loadoutSelectSeconds;
 
-        // If server says locked, close popup and disable interactions
         if (locked)
         {
             if (pickerPopup != null) pickerPopup.Hide();
@@ -111,11 +110,24 @@ public class LoadoutSelectUI : MonoBehaviour
 
         if (pickerPopup == null || iconDb == null) return;
 
-        pickerPopup.Show(iconDb, (pickedId) =>
+        HashSet<AbilityId> disabled = BuildDisabledSet(exceptSlotIndex: slotIndex);
+
+        pickerPopup.Show(iconDb, disabled, (pickedId) =>
         {
             _selected[slotIndex] = pickedId;
             RefreshCards();
         });
+    }
+
+    private HashSet<AbilityId> BuildDisabledSet(int exceptSlotIndex)
+    {
+        var set = new HashSet<AbilityId>();
+        for (int i = 0; i < _selected.Length; i++)
+        {
+            if (i == exceptSlotIndex) continue;
+            if (_selected[i].HasValue) set.Add(_selected[i].Value);
+        }
+        return set;
     }
 
     private void RefreshCards()
@@ -145,15 +157,16 @@ public class LoadoutSelectUI : MonoBehaviour
 
     private void AutoFillMissingSlots()
     {
-        var all = (AbilityId[])System.Enum.GetValues(typeof(AbilityId));
+        if (iconDb == null || iconDb.entries == null || iconDb.entries.Count == 0)
+            return;
 
         for (int slot = 0; slot < _selected.Length; slot++)
         {
             if (_selected[slot].HasValue) continue;
 
-            for (int i = 0; i < all.Length; i++)
+            for (int i = 0; i < iconDb.entries.Count; i++)
             {
-                AbilityId candidate = all[i];
+                var candidate = iconDb.entries[i].id;
                 if (!IsAlreadyPicked(candidate))
                 {
                     _selected[slot] = candidate;
@@ -175,6 +188,7 @@ public class LoadoutSelectUI : MonoBehaviour
     private void SubmitIfReady()
     {
         if (_submitted) return;
+
         if (!IsAllSlotsFilledNoDuplicates())
         {
             if (statusText != null) statusText.text = "Fill all 4 slots (no duplicates).";
@@ -189,9 +203,10 @@ public class LoadoutSelectUI : MonoBehaviour
             _selected[3].Value
         };
 
-        // CLOSE POPUP immediately when submitting
         if (pickerPopup != null) pickerPopup.Hide();
 
+        Debug.Log($"[LoadoutSelectUI] Submitting loadout: " +
+                  $"{chosen[0]}, {chosen[1]}, {chosen[2]}, {chosen[3]}");
         MatchManager.Instance.SubmitLoadoutServerRpc(chosen);
         _submitted = true;
 

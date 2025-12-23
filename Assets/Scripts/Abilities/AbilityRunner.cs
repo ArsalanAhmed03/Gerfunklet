@@ -4,31 +4,98 @@ using System.Collections.Generic;
 
 public class AbilityRunner : NetworkBehaviour
 {
-    [Header("4 slots in order: 1..4")]
+    [Header("Definition DB (client + server)")]
+    [SerializeField] private AbilityCatalog defDb;
+
+    // Replicated slot ids (server writes, everyone reads)
+    public NetworkVariable<AbilityId> Slot0 = new NetworkVariable<AbilityId>(
+        AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    public NetworkVariable<AbilityId> Slot1 = new NetworkVariable<AbilityId>(
+        AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    public NetworkVariable<AbilityId> Slot2 = new NetworkVariable<AbilityId>(
+        AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    public NetworkVariable<AbilityId> Slot3 = new NetworkVariable<AbilityId>(
+        AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+    // Local derived cache (not networked)
+    [Header("Local derived defs (debug)")]
     public AbilityDefinition[] slots = new AbilityDefinition[4];
 
     private readonly Dictionary<AbilityId, float> serverReadyAt = new Dictionary<AbilityId, float>();
+
     [Header("Debug")]
     [SerializeField] private bool debugAbilities = true;
 
-    private void DebugAbility(string msg)
+    private void Awake()
     {
-        if (!debugAbilities) return;
-        Debug.Log(msg);
+        if (defDb != null) defDb.Build();
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        Slot0.OnValueChanged += (_, __) => RebuildLocalSlots();
+        Slot1.OnValueChanged += (_, __) => RebuildLocalSlots();
+        Slot2.OnValueChanged += (_, __) => RebuildLocalSlots();
+        Slot3.OnValueChanged += (_, __) => RebuildLocalSlots();
+        Debug.Log($"[AbilityRunner][SPAWN] local={NetworkManager.Singleton.LocalClientId} owner={OwnerClientId} isServer={IsServer} defDbNull={(defDb==null)} slots={Slot0.Value},{Slot1.Value},{Slot2.Value},{Slot3.Value}");
+        RebuildLocalSlots();
+    }
+
+    private void RebuildLocalSlots()
+    {
+        slots[0] = Resolve(Slot0.Value);
+        slots[1] = Resolve(Slot1.Value);
+        slots[2] = Resolve(Slot2.Value);
+        slots[3] = Resolve(Slot3.Value);
+    }
+
+    private AbilityDefinition Resolve(AbilityId id)
+    {
+        if (id == AbilityId.None) return null;
+        if (defDb == null) return null;
+        return defDb.GetDefinition(id);
+    }
+
+    public AbilityId GetSlotId(int slotIndex)
+    {
+        return slotIndex switch
+        {
+            0 => Slot0.Value,
+            1 => Slot1.Value,
+            2 => Slot2.Value,
+            3 => Slot3.Value,
+            _ => AbilityId.None
+        };
+    }
+
+    // Called by MatchManager on server when loadout submitted
+    public void ApplyLoadoutServer(AbilityId[] chosen)
+    {
+        if (!IsServer) return;
+        if (chosen == null || chosen.Length != 4) return;
+
+        Slot0.Value = chosen[0];
+        Slot1.Value = chosen[1];
+        Slot2.Value = chosen[2];
+        Slot3.Value = chosen[3];
+
+        serverReadyAt.Clear();
     }
 
     public void TryCastSlot(int slotIndex)
     {
         if (!IsOwner) return;
 
-        // Gate locally to avoid spam (server will also validate)
         if (GameManager.Instance != null && !GameManager.Instance.GameplayEnabled) return;
 
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned) return;
 
-        if (slotIndex < 0 || slotIndex >= slots.Length) return;
-        if (slots[slotIndex] == null) return;
+        if (slotIndex < 0 || slotIndex > 3) return;
+
+        // IMPORTANT: gate on replicated ids, not on ScriptableObject refs
+        var id = GetSlotId(slotIndex);
+        if (id == AbilityId.None) return;
 
         CastAbilityServerRpc(slotIndex);
     }
@@ -36,59 +103,47 @@ public class AbilityRunner : NetworkBehaviour
     [ServerRpc]
     private void CastAbilityServerRpc(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex >= slots.Length) return;
+        if (slotIndex < 0 || slotIndex > 3) return;
 
-        // Server-side phase gate (authoritative)
         if (MatchManager.Instance == null) return;
-
         var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
         bool live = phase == MatchManager.MatchPhase.Playing || phase == MatchManager.MatchPhase.Overtime;
         if (!live) return;
 
-        // Server-side stun gate (authoritative)
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned) return;
 
-        var def = slots[slotIndex];
+        var id = GetSlotId(slotIndex);
+        if (id == AbilityId.None) return;
+
+        var def = Resolve(id);
         if (def == null) return;
 
-        if (serverReadyAt.TryGetValue(def.id, out float readyAt))
+        if (serverReadyAt.TryGetValue(id, out float readyAt) && Time.time < readyAt) return;
+        serverReadyAt[id] = Time.time + def.cooldownSeconds;
+
+        if (debugAbilities)
         {
-            if (Time.time < readyAt)
-                return;
+            Debug.Log($"[Ability][SERVER ACCEPT] owner={OwnerClientId} ability={id} slot={slotIndex + 1}");
         }
 
-        serverReadyAt[def.id] = Time.time + def.cooldownSeconds;
-
-        DebugAbility(
-        $"[Ability][SERVER ACCEPT] client={OwnerClientId} " +
-        $"ability={def.id} slot={slotIndex + 1} cd={def.cooldownSeconds:0.00}s " +
-        $"round={(MatchManager.Instance != null ? MatchManager.Instance.CurrentRound.Value : -1)} " +
-        $"phase={(MatchManager.Instance != null ? ((MatchManager.MatchPhase)MatchManager.Instance.Phase.Value).ToString() : "N/A")}"
-        );
         def.ServerExecute(this);
     }
 
     [ClientRpc]
     public void PlayAbilityFxClientRpc(AbilityId id)
     {
-        for (int i = 0; i < slots.Length; i++)
+        var def = Resolve(id);
+        if (def == null) return;
+
+        if (debugAbilities)
         {
-            var def = slots[i];
-            if (def != null && def.id == id)
-            {
-                if (debugAbilities)
-                {
-                    Debug.Log($"[Ability][CLIENT FX] localClient={NetworkManager.Singleton.LocalClientId} " +
-                              $"owner={OwnerClientId} ability={id}");
-                }
-                def.ClientExecute(this);
-                return;
-            }
+            Debug.Log($"[Ability][CLIENT FX] local={NetworkManager.Singleton.LocalClientId} owner={OwnerClientId} ability={id}");
         }
+
+        def.ClientExecute(this);
     }
 
-    // New: reset cooldowns between rounds
     [ServerRpc(RequireOwnership = false)]
     public void ResetForNewRoundServerRpc()
     {

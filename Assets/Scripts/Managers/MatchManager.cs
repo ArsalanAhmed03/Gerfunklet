@@ -481,19 +481,42 @@ public class MatchManager : NetworkBehaviour
         return null;
     }
 
+    // private bool TryGetPlayerAbilityRunner(ulong clientId, out AbilityRunner runner)
+    // {
+    //     runner = null;
+
+    //     if (NetworkManager.Singleton == null) return false;
+    //     if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var cc)) return false;
+
+    //     var playerObj = cc.PlayerObject;
+    //     if (playerObj == null) return false;
+
+    //     runner = playerObj.GetComponent<AbilityRunner>();
+    //     return runner != null;
+    // }
+
     private bool TryGetPlayerAbilityRunner(ulong clientId, out AbilityRunner runner)
     {
         runner = null;
 
+        if (LocalSpawner.Instance != null)
+        {
+            var go = LocalSpawner.Instance.GetPlayerForClient(clientId);
+            if (go != null)
+            {
+                runner = go.GetComponent<AbilityRunner>();
+                return runner != null;
+            }
+        }
+
         if (NetworkManager.Singleton == null) return false;
         if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var cc)) return false;
+        if (cc.PlayerObject == null) return false;
 
-        var playerObj = cc.PlayerObject;
-        if (playerObj == null) return false;
-
-        runner = playerObj.GetComponent<AbilityRunner>();
+        runner = cc.PlayerObject.GetComponent<AbilityRunner>();
         return runner != null;
     }
+
 
     [ServerRpc(RequireOwnership = false)]
     public void SubmitLoadoutServerRpc(AbilityId[] chosenAbilities, ServerRpcParams rpcParams = default)
@@ -520,16 +543,22 @@ public class MatchManager : NetworkBehaviour
             _playerLoadouts = new Dictionary<ulong, AbilityId[]>();
 
         _playerLoadouts[sender] = chosenAbilities;
+        Debug.Log($"[Loadout][SERVER] chosen for {sender}: {chosenAbilities[0]},{chosenAbilities[1]},{chosenAbilities[2]},{chosenAbilities[3]}");
+
 
         Debug.Log($"[Loadout][SERVER] Stored loadout for {sender}. totalSubmitted={_playerLoadouts.Count}/{requiredPlayers}");
 
+        Debug.Log($"[Loadout][SERVER] ConnectedClients has sender? {NetworkManager.Singleton.ConnectedClients.ContainsKey(sender)} " +
+          $"playerObjNull={(NetworkManager.Singleton.ConnectedClients.ContainsKey(sender) ? (NetworkManager.Singleton.ConnectedClients[sender].PlayerObject == null) : true)}");
+
+
         if (TryGetPlayerAbilityRunner(sender, out var runner))
         {
-            runner.slots[0] = GetDef(chosenAbilities[0]);
-            runner.slots[1] = GetDef(chosenAbilities[1]);
-            runner.slots[2] = GetDef(chosenAbilities[2]);
-            runner.slots[3] = GetDef(chosenAbilities[3]);
+            Debug.Log($"[Loadout][SERVER] Found runner for {sender}. Before apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value}");
+            runner.ApplyLoadoutServer(chosenAbilities);
+            Debug.Log($"[Loadout][SERVER] After apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value}");
             runner.ResetForNewRoundServerRpc();
+
         }
 
         if (_playerLoadouts.Count >= requiredPlayers)

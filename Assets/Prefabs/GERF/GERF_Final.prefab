@@ -1739,12 +1739,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+  defDb: {fileID: 11400000, guid: 9e2a19460babf8848b7590a4aed5a97e, type: 2}
+  Slot0:
+    m_InternalValue: -1
+  Slot1:
+    m_InternalValue: -1
+  Slot2:
+    m_InternalValue: -1
+  Slot3:
+    m_InternalValue: -1
   slots:
-  - {fileID: 11400000, guid: 29904c48677fe61438be96ef65c82b9e, type: 2}
-  - {fileID: 11400000, guid: 4ac8287928726e542be3ed8a4bdac412, type: 2}
-  - {fileID: 11400000, guid: eae70a18ce09a3248b3a101fe5a6cfda, type: 2}
-  - {fileID: 11400000, guid: 4338581cdcc91604a9ab0ed4b59b7506, type: 2}
-  - {fileID: 11400000, guid: c23298fcc90e9554cb7fb0da1e8ad462, type: 2}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  debugAbilities: 1
 --- !u!114 &5106317536397322296
 MonoBehaviour:
   m_ObjectHideFlags: 0

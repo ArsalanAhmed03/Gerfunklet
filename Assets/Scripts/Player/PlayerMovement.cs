@@ -142,15 +142,27 @@ public class PlayerMovement : NetworkBehaviour
         if (abilityRunner != null)
         {
             if (ability1Action != null && ability1Action.WasPressedThisFrame())
+            {
+                Debug.Log("Casting ability slot 0");
                 abilityRunner.TryCastSlot(0);
+            }
 
             if (ability2Action != null && ability2Action.WasPressedThisFrame())
+            {
+                Debug.Log("Casting ability slot 1");
                 abilityRunner.TryCastSlot(1);
+            }
 
             if (ability3Action != null && ability3Action.WasPressedThisFrame())
+            {
+                Debug.Log("Casting ability slot 2");
                 abilityRunner.TryCastSlot(2);
+            }
             if (ability4Action != null && ability4Action.WasPressedThisFrame())
+            {
+                Debug.Log("Casting ability slot 3");
                 abilityRunner.TryCastSlot(3);
+            }
         }
 
     }
