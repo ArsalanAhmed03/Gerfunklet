@@ -157,21 +157,11 @@ public class LocalSpawner : NetworkBehaviour
             var minionAI = minionInstance.GetComponent<MinionAI>();
             if (minionAI != null)
             {
-                if (NetworkManager.Singleton.LocalClientId == clientId)
+                foreach (var kvp in spawnedPlayers)
                 {
-                    foreach (var kvp in spawnedPlayers)
-                    {
-                        if (kvp.Key != clientId)
-                        {
-                            minionAI.target = kvp.Value?.transform;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    if (spawnedPlayers.TryGetValue(NetworkManager.Singleton.LocalClientId, out var targetPlayer))
-                        minionAI.target = targetPlayer?.transform;
+                    if (kvp.Key == clientId) continue;
+                    minionAI.target = kvp.Value?.transform;
+                    break;
                 }
             }
 

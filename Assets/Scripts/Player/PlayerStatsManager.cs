@@ -140,20 +140,23 @@ public class PlayerStatsManager : NetworkBehaviour
 
     public void Heal(int healAmount)
     {
-        if (!IsOwner || !isAlive.Value) return;
+        if (!IsOwner && !IsServer) return;
+        if (!isAlive.Value) return;
 
-        int newHealth = Mathf.Min(maxHealth, health.Value + healAmount);
-        health.Value = newHealth;
-
-        if (debugMode)
-            Debug.Log($"Player healed {healAmount}. Health: {newHealth}/{maxHealth}");
+        if (IsServer)
+            ApplyHealServer(healAmount);
+        else
+            HealServerRpc(healAmount);
     }
 
     public void SetHealth(int newHealth)
     {
-        if (!IsOwner) return;
+        if (!IsOwner && !IsServer) return;
 
-        health.Value = Mathf.Clamp(newHealth, 0, maxHealth);
+        if (IsServer)
+            ApplySetHealthServer(newHealth);
+        else
+            SetHealthServerRpc(newHealth);
     }
 
     private void Die()
@@ -167,13 +170,12 @@ public class PlayerStatsManager : NetworkBehaviour
 
     public void Respawn()
     {
-        if (!IsOwner) return;
+        if (!IsOwner && !IsServer) return;
 
-        health.Value = maxHealth;
-        isAlive.Value = true;
-
-        if (debugMode)
-            Debug.Log("Player respawned!");
+        if (IsServer)
+            ApplyRespawnServer();
+        else
+            RespawnServerRpc();
     }
 
     #endregion
@@ -182,28 +184,127 @@ public class PlayerStatsManager : NetworkBehaviour
 
     public void AddPoints(int pointsToAdd)
     {
-        if (!IsOwner) return;
+        if (!IsOwner && !IsServer) return;
 
-        points.Value += pointsToAdd;
-
-        if (debugMode)
-            Debug.Log($"Added {pointsToAdd} points. Total: {points.Value}");
+        if (IsServer)
+            ApplyAddPointsServer(pointsToAdd);
+        else
+            AddPointsServerRpc(pointsToAdd);
     }
 
     public void RemovePoints(int pointsToRemove)
     {
-        if (!IsOwner) return;
+        if (!IsOwner && !IsServer) return;
 
-        points.Value = Mathf.Max(0, points.Value - pointsToRemove);
-
-        if (debugMode)
-            Debug.Log($"Removed {pointsToRemove} points. Total: {points.Value}");
+        pointsToRemove = Mathf.Max(0, pointsToRemove);
+        if (IsServer)
+            ApplyAddPointsServer(-pointsToRemove);
+        else
+            RemovePointsServerRpc(pointsToRemove);
     }
 
     public void SetPoints(int newPoints)
     {
-        if (!IsOwner) return;
+        if (!IsOwner && !IsServer) return;
 
+        if (IsServer)
+            ApplySetPointsServer(newPoints);
+        else
+            SetPointsServerRpc(newPoints);
+    }
+
+    [ServerRpc]
+    private void HealServerRpc(int healAmount)
+    {
+        ApplyHealServer(healAmount);
+    }
+
+    private void ApplyHealServer(int healAmount)
+    {
+        if (!IsServer) return;
+        if (!isAlive.Value) return;
+        if (healAmount <= 0) return;
+
+        int newHealth = Mathf.Min(maxHealth, health.Value + healAmount);
+        health.Value = newHealth;
+        UpdateHealthUIClientRpc(newHealth);
+
+        if (debugMode)
+            Debug.Log($"Player healed {healAmount}. Health: {newHealth}/{maxHealth}");
+    }
+
+    [ServerRpc]
+    private void SetHealthServerRpc(int newHealth)
+    {
+        ApplySetHealthServer(newHealth);
+    }
+
+    private void ApplySetHealthServer(int newHealth)
+    {
+        if (!IsServer) return;
+
+        int clamped = Mathf.Clamp(newHealth, 0, maxHealth);
+        health.Value = clamped;
+        UpdateHealthUIClientRpc(clamped);
+    }
+
+    [ServerRpc]
+    private void RespawnServerRpc()
+    {
+        ApplyRespawnServer();
+    }
+
+    private void ApplyRespawnServer()
+    {
+        if (!IsServer) return;
+
+        health.Value = maxHealth;
+        isAlive.Value = true;
+        UpdateHealthUIClientRpc(health.Value);
+
+        if (debugMode)
+            Debug.Log("Player respawned!");
+    }
+
+    [ServerRpc]
+    private void AddPointsServerRpc(int pointsToAdd)
+    {
+        pointsToAdd = Mathf.Max(0, pointsToAdd);
+        ApplyAddPointsServer(pointsToAdd);
+    }
+
+    [ServerRpc]
+    private void RemovePointsServerRpc(int pointsToRemove)
+    {
+        pointsToRemove = Mathf.Max(0, pointsToRemove);
+        ApplyAddPointsServer(-pointsToRemove);
+    }
+
+    [ServerRpc]
+    private void SetPointsServerRpc(int newPoints)
+    {
+        ApplySetPointsServer(newPoints);
+    }
+
+    private void ApplyAddPointsServer(int delta)
+    {
+        if (!IsServer) return;
+
+        int newValue = Mathf.Max(0, points.Value + delta);
+        points.Value = newValue;
+
+        if (debugMode)
+        {
+            if (delta >= 0)
+                Debug.Log($"Added {delta} points. Total: {points.Value}");
+            else
+                Debug.Log($"Removed {Mathf.Abs(delta)} points. Total: {points.Value}");
+        }
+    }
+
+    private void ApplySetPointsServer(int newPoints)
+    {
+        if (!IsServer) return;
         points.Value = Mathf.Max(0, newPoints);
     }
 
