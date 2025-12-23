@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using Unity.Netcode;
 
 public class LoadoutSelectUI : MonoBehaviour
 {
@@ -58,13 +59,11 @@ public class LoadoutSelectUI : MonoBehaviour
         if (!show)
         {
             if (pickerPopup != null) pickerPopup.Hide();
+            _loadoutEndsAtLocal = 0f;
             return;
         }
 
         bool locked = MatchManager.Instance.LoadoutsLocked.Value;
-
-        if (!_submitted && _loadoutEndsAtLocal <= 0f)
-            _loadoutEndsAtLocal = Time.time + loadoutSelectSeconds;
 
         if (locked)
         {
@@ -75,8 +74,9 @@ public class LoadoutSelectUI : MonoBehaviour
             return;
         }
 
-        float remaining = Mathf.Max(0f, _loadoutEndsAtLocal - Time.time);
-        float t01 = 1f - Mathf.Clamp01(remaining / Mathf.Max(0.01f, loadoutSelectSeconds));
+        float remaining = GetRemainingLoadoutSeconds();
+        float duration = GetLoadoutDurationSeconds();
+        float t01 = 1f - Mathf.Clamp01(remaining / Mathf.Max(0.01f, duration));
         UpdateCountdownVisual(t01);
 
         if (statusText != null)
@@ -90,6 +90,31 @@ public class LoadoutSelectUI : MonoBehaviour
             AutoFillMissingSlots();
             SubmitIfReady();
         }
+    }
+
+    private float GetRemainingLoadoutSeconds()
+    {
+        if (MatchManager.Instance == null) return 0f;
+
+        double endServerTime = MatchManager.Instance.LoadoutEndsAtServerTime.Value;
+        if (endServerTime > 0d && NetworkManager.Singleton != null)
+        {
+            double now = NetworkManager.Singleton.ServerTime.Time;
+            return Mathf.Max(0f, (float)(endServerTime - now));
+        }
+
+        if (_loadoutEndsAtLocal <= 0f)
+            _loadoutEndsAtLocal = Time.time + GetLoadoutDurationSeconds();
+
+        return Mathf.Max(0f, _loadoutEndsAtLocal - Time.time);
+    }
+
+    private float GetLoadoutDurationSeconds()
+    {
+        if (MatchManager.Instance != null)
+            return MatchManager.Instance.LoadoutSelectSeconds;
+
+        return loadoutSelectSeconds;
     }
 
     private void UpdateCountdownVisual(float t01)

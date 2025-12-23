@@ -12,6 +12,8 @@ public class MatchManager : NetworkBehaviour
     public event Action<int> OnRoundChanged;
     public event Action<int, int> OnScoreChanged;
 
+    public float LoadoutSelectSeconds => loadoutSelectSeconds;
+
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
     public enum MatchPhase : int
@@ -28,6 +30,7 @@ public class MatchManager : NetworkBehaviour
     [Header("Config")]
     [SerializeField] private int requiredPlayers = 2;
     [SerializeField] private float countdownSeconds = 3f;
+    [SerializeField] private float loadoutSelectSeconds = 20f;
 
     [Header("Round / Match Rules")]
     [SerializeField] private int roundsToWin = 2;             // Best-of-3 => first to 2
@@ -86,6 +89,12 @@ public class MatchManager : NetworkBehaviour
 
     public NetworkVariable<bool> LoadoutsLocked = new NetworkVariable<bool>(
         false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    public NetworkVariable<double> LoadoutEndsAtServerTime = new NetworkVariable<double>(
+        0d,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
@@ -251,11 +260,19 @@ public class MatchManager : NetworkBehaviour
         // Reset loadout state for a fresh match start
         LoadoutsLocked.Value = false;
         _playerLoadouts?.Clear();
+        SetLoadoutEndTimeServer();
 
         // Ensure gameplay is disabled
         SetGameplayEnabledClientRpc(false);
 
         Phase.Value = (int)MatchPhase.LoadoutSelect;
+    }
+
+    private void SetLoadoutEndTimeServer()
+    {
+        if (!IsServer) return;
+        if (NetworkManager.Singleton == null) return;
+        LoadoutEndsAtServerTime.Value = NetworkManager.Singleton.ServerTime.Time + loadoutSelectSeconds;
     }
 
     private IEnumerator CountdownRoutine()
@@ -265,6 +282,7 @@ public class MatchManager : NetworkBehaviour
 
         _countdownStarted = true;
 
+        LoadoutEndsAtServerTime.Value = 0d;
         Phase.Value = (int)MatchPhase.Countdown;
 
         MatchRemaining.Value = matchSeconds;
@@ -448,6 +466,7 @@ public class MatchManager : NetworkBehaviour
             // New match should go to LoadoutSelect again (fresh choices)
             LoadoutsLocked.Value = false;
             _playerLoadouts?.Clear();
+            SetLoadoutEndTimeServer();
 
             Phase.Value = (int)MatchPhase.LoadoutSelect;
         }

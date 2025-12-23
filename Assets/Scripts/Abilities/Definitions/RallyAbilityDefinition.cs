@@ -14,6 +14,10 @@ public class RallyAbilityDefinition : AbilityDefinition
 
         foreach (var col in hits)
         {
+            var no = col.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            if (no == null || no.OwnerClientId != runner.OwnerClientId)
+                continue;
+
             var buff = col.GetComponentInParent<BuffReceiver>();
             if (buff != null)
                 buff.ApplyMoveSpeedBuffServerRpc(moveSpeedMultiplier, durationSeconds);
