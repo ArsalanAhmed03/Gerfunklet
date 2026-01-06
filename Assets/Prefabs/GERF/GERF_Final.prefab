@@ -1455,6 +1455,7 @@ GameObject:
   - component: {fileID: 3938582411474864235}
   - component: {fileID: -8941088114505424665}
   - component: {fileID: -1959749939435986130}
+  - component: {fileID: -3488953738839561670}
   m_Layer: 6
   m_Name: GERF_Final
   m_TagString: Player
@@ -1852,6 +1853,24 @@ MonoBehaviour:
   globalGcdSec: 0.5
   Atp:
     m_InternalValue: 0
+--- !u!114 &-3488953738839561670
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5810877104416554291}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b646a3828cfa414a8d26a2d797c9d6b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  deckSize: 8
+  handSize: 4
+  maxMulliganSwaps: 2
+  catalog: {fileID: 11400000, guid: cbf8ae1759c0e954b83a12aecbd01aa2, type: 2}
+  defaultDeck: 
 --- !u!1 &5844545766679675734
 GameObject:
   m_ObjectHideFlags: 0

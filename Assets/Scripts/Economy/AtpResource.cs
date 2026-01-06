@@ -23,6 +23,7 @@ public class AtpResource : NetworkBehaviour
     public float AtpCap => atpCap;
     public float RegenPerSec => atpRegenPerSec;
     public float GlobalGcdSec => globalGcdSec;
+    public float CurrentAtp => Atp.Value;
 
     public override void OnNetworkSpawn()
     {

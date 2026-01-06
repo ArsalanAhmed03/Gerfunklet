@@ -12158,6 +12158,7 @@ MonoBehaviour:
   roundsToWin: 2
   endScreenSeconds: 3
   overtimeLabelSeconds: 2
+  overtimeSeconds: 60
   matchSeconds: 180
   allAbilityDefs:
   - {fileID: 11400000, guid: 4338581cdcc91604a9ab0ed4b59b7506, type: 2}
@@ -12172,6 +12173,8 @@ MonoBehaviour:
   WinnerClientId:
     m_InternalValue: 18446744073709551615
   MatchRemaining:
+    m_InternalValue: 0
+  OvertimeRemaining:
     m_InternalValue: 0
   CurrentRound:
     m_InternalValue: 1
@@ -17754,7 +17757,7 @@ MonoBehaviour:
   - {fileID: 707407314}
   - {fileID: 406477737}
   minionAtpCost: 2
-  debugMode: 0
+  debugMode: 1
 --- !u!1001 &1877935500
 PrefabInstance:
   m_ObjectHideFlags: 0

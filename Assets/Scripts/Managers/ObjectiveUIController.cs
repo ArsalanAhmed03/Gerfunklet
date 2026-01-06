@@ -114,6 +114,7 @@ public class ObjectiveUIController : MonoBehaviour
         _match = MatchManager.Instance;
         _match.OnPhaseChanged += HandlePhaseChanged;
         _match.MatchRemaining.OnValueChanged += HandleMatchRemainingChanged;
+        _match.OvertimeRemaining.OnValueChanged += HandleOvertimeRemainingChanged;
         _matchBound = true;
     }
 
@@ -123,6 +124,7 @@ public class ObjectiveUIController : MonoBehaviour
 
         _match.OnPhaseChanged -= HandlePhaseChanged;
         _match.MatchRemaining.OnValueChanged -= HandleMatchRemainingChanged;
+        _match.OvertimeRemaining.OnValueChanged -= HandleOvertimeRemainingChanged;
         _match = null;
         _matchBound = false;
     }
@@ -133,6 +135,11 @@ public class ObjectiveUIController : MonoBehaviour
     }
 
     private void HandleMatchRemainingChanged(float oldValue, float newValue)
+    {
+        UpdateMatchTimer();
+    }
+
+    private void HandleOvertimeRemainingChanged(float oldValue, float newValue)
     {
         UpdateMatchTimer();
     }
@@ -206,15 +213,21 @@ public class ObjectiveUIController : MonoBehaviour
 
         if (_match.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
         {
-            gm.matchTimerText.text = "OVERTIME";
+            float t = Mathf.Max(0f, _match.OvertimeRemaining.Value);
+            int seconds = Mathf.CeilToInt(t);
+            int mins = seconds / 60;
+            int secs = seconds % 60;
+            gm.matchTimerText.text = $"OT {mins:00}:{secs:00}";
             return;
         }
+        else
+        {
 
-        float t = Mathf.Max(0f, _match.MatchRemaining.Value);
-        int seconds = Mathf.CeilToInt(t);
-        int mins = seconds / 60;
-        int secs = seconds % 60;
-
-        gm.matchTimerText.text = $"{mins:00}:{secs:00}";
+            float t = Mathf.Max(0f, _match.MatchRemaining.Value);
+            int seconds = Mathf.CeilToInt(t);
+            int mins = seconds / 60;
+            int secs = seconds % 60;
+            gm.matchTimerText.text = $"{mins:00}:{secs:00}";
+        }
     }
 }

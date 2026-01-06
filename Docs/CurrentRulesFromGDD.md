@@ -33,10 +33,16 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - ATP is server-authoritative with defaults from the GDD: cap 10, regen 0.9/s, start 4, global spend GCD 0.5s.
 - Minion spawn cost is enforced when an AtpResource component is present on the player.
 
+### Card/Hand Scaffold (Partial)
+- Each player has a deck of 8 cards and a hand of 4 cards.
+- Mulligan: up to 2 swaps per match, only during LoadoutSelect.
+- Cards can be played during Playing/Overtime to spend ATP and replace the slot; current implementation logs the play only.
+
 ## Implemented But Diverging From GDD
 - GDD Rally includes attack speed and ally/minion buffs; current implementation only applies move speed and only to caster-owned characters.
 - GDD uses the Millstone/Citadel/Throne objective flow; current build uses capture zones and death to resolve rounds.
 - GDD respawn delay: 8s; current build resets on round reset without a per-player respawn timer.
+- GDD overtime is a fixed 1:00 with bonuses; current build caps overtime at 60s but does not apply bonuses.
 
 ## Not Yet Implemented (GDD)
 - Millstone carry/throw/reclaim flow, Citadel/Throne flow.
@@ -50,4 +56,5 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Scene/Prefab Changes Required To Use New Systems
 - Add `AtpResource` to the player prefab to enable ATP regen/spend.
 - Set `LocalSpawner.minionAtpCost` to match the intended minion cost (default is 2).
-- Add ATP UI bindings (not yet implemented) if you want players to see ATP state.
+- Add an `AtpUI` component to your HUD and wire its slider/text fields to display ATP.
+- Add `CardHand` to the player prefab and assign a `CardCatalog` (or default deck) to initialize cards.

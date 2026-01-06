@@ -37,6 +37,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private int roundsToWin = 2;             // Best-of-3 => first to 2
     [SerializeField] private float endScreenSeconds = 3f;      // delay after round/match result shown
     [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
+    [SerializeField] private float overtimeSeconds = 60f;
 
     [Header("Match Timer")]
     [SerializeField] private float matchSeconds = 180f;
@@ -65,6 +66,12 @@ public class MatchManager : NetworkBehaviour
     );
 
     public NetworkVariable<float> MatchRemaining = new NetworkVariable<float>(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    public NetworkVariable<float> OvertimeRemaining = new NetworkVariable<float>(
         0f,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
@@ -211,6 +218,21 @@ public class MatchManager : NetworkBehaviour
             {
                 MatchRemaining.Value = 0f;
                 Phase.Value = (int)MatchPhase.Overtime;
+                OvertimeRemaining.Value = overtimeSeconds;
+            }
+        }
+
+        phase = (MatchPhase)Phase.Value;
+        if (phase == MatchPhase.Overtime)
+        {
+            if (OvertimeRemaining.Value > 0f)
+            {
+                OvertimeRemaining.Value -= Time.deltaTime;
+                if (OvertimeRemaining.Value <= 0f)
+                {
+                    OvertimeRemaining.Value = 0f;
+                    EndRoundServer(ulong.MaxValue);
+                }
             }
         }
     }
@@ -288,6 +310,7 @@ public class MatchManager : NetworkBehaviour
         _playerLoadouts?.Clear();
         AssignTeamsIfNeededServer();
         SetLoadoutEndTimeServer();
+        ResetAllHandsForMatchServer();
 
         // Ensure gameplay is disabled
         SetGameplayEnabledClientRpc(false);
@@ -343,6 +366,7 @@ public class MatchManager : NetworkBehaviour
         _countdownStarted = true;
 
         LoadoutEndsAtServerTime.Value = 0d;
+        OvertimeRemaining.Value = 0f;
         Phase.Value = (int)MatchPhase.Countdown;
 
         MatchRemaining.Value = matchSeconds;
@@ -564,6 +588,7 @@ public class MatchManager : NetworkBehaviour
             LoadoutsLocked.Value = false;
             _playerLoadouts?.Clear();
             SetLoadoutEndTimeServer();
+            ResetAllHandsForMatchServer();
 
             Phase.Value = (int)MatchPhase.LoadoutSelect;
         }
@@ -598,10 +623,29 @@ public class MatchManager : NetworkBehaviour
         PlayerAWins.Value = 0;
         PlayerBWins.Value = 0;
         WinnerClientId.Value = ulong.MaxValue;
+        OvertimeRemaining.Value = 0f;
 
         _roundEnding = false;
         _pendingWinner = ulong.MaxValue;
         _pendingWinnerTime = -1;
+    }
+
+    private void ResetAllHandsForMatchServer()
+    {
+        if (!IsServer) return;
+        if (LocalSpawner.Instance == null) return;
+        if (NetworkManager.Singleton == null) return;
+
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            var playerObj = LocalSpawner.Instance.GetPlayerForClient(client.ClientId);
+            if (playerObj == null) continue;
+
+            var hand = playerObj.GetComponent<CardHand>();
+            
+            if (hand != null)
+                hand.ResetForNewMatchServer();
+        }
     }
 
     private void DespawnAllMinionsServer()
