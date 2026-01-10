@@ -122,6 +122,24 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "MillstoneDrop",
+                    "type": "Button",
+                    "id": "1ac3ab79-e593-4054-9f48-c4ec5588bbc9",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "MillstoneThrow",
+                    "type": "Button",
+                    "id": "85eaebd6-64a1-4260-b836-6099737c0984",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -540,6 +558,28 @@
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Ability4",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "35993072-b179-4c93-a4bb-aad7200bee10",
+                    "path": "<Keyboard>/q",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "MillstoneDrop",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "7b1d333e-b668-4f29-b773-6d07cc394584",
+                    "path": "<Keyboard>/e",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "MillstoneThrow",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

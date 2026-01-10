@@ -11,6 +11,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 
 ### Win Conditions (Current Build)
 - A round ends when a player dies or an objective zone completes a capture channel.
+- A match ends immediately when a Millstone is planted at the enemy altar (primary path).
+- A match can also end by destroying the enemy Citadel and completing a Throne channel.
 - A match ends when a player reaches the round win threshold.
 
 ### Loadout System
@@ -43,9 +45,12 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - GDD uses the Millstone/Citadel/Throne objective flow; current build uses capture zones and death to resolve rounds.
 - GDD respawn delay: 8s; current build resets on round reset without a per-player respawn timer.
 - GDD overtime is a fixed 1:00 with bonuses; current build caps overtime at 60s but does not apply bonuses.
+- Millstone throw/drop is implemented, but reclaim/contest rules are simplified (any player can pick up a dropped head after a 1s hold).
+- Throne capture uses a simple channel gated by Citadel destroyed; Citadel damage is currently just proximity damage.
+- ObjectiveZone wins are disabled by default to match GDD win paths (can be re-enabled in MatchManager).
 
 ## Not Yet Implemented (GDD)
-- Millstone carry/throw/reclaim flow, Citadel/Throne flow.
+- Full Citadel/Throne flow (structure attacks, siege units, damage tuning).
 - ATP hand/deck system (cards, mulligan, global hand GCD usage in UI).
 - Stamina sleep/wake and feast mechanics.
 - Devour and Super abilities.
@@ -58,3 +63,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Set `LocalSpawner.minionAtpCost` to match the intended minion cost (default is 2).
 - Add an `AtpUI` component to your HUD and wire its slider/text fields to display ATP.
 - Add `CardHand` to the player prefab and assign a `CardCatalog` (or default deck) to initialize cards.
+- Add input actions named `MillstoneDrop` and `MillstoneThrow` to the Player action map if you want manual drop/throw controls.
+- Add `CitadelHealth` to each Citadel object and assign each Throne’s `requiredCitadel`.
+- Add `ThroneCapture` to each Throne with a trigger collider.
+- Assign `GameManager.citadelA/citadelB` and `GameManager.throneA/throneB`, plus enemy Citadel/Throne UI sliders/text if you want HUD updates.

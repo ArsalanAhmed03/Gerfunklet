@@ -88,6 +88,12 @@ public class NetworkProjectile : NetworkBehaviour
                         //     stun.ApplyStunServerRpc(stunDuration);
                     }
 
+                    var citadel = hit.collider.GetComponentInParent<CitadelHealth>();
+                    if (citadel != null)
+                    {
+                        citadel.ApplyDamageServer(damage);
+                    }
+
                     SafeDespawn();
                     return;
                 }

@@ -8,6 +8,10 @@ public class ObjectiveUIController : MonoBehaviour
     private ObjectiveZone _zoneB;
     private ObjectiveZone _myZone;
     private ObjectiveZone _enemyZone;
+    private CitadelHealth _citadelA;
+    private CitadelHealth _citadelB;
+    private ThroneCapture _throneA;
+    private ThroneCapture _throneB;
     private MatchManager _match;
     private bool _zonesBound;
     private bool _matchBound;
@@ -44,8 +48,10 @@ public class ObjectiveUIController : MonoBehaviour
 
         BindMatch();
         BindZones(gm.zoneA, gm.zoneB);
+        BindCitadelThrone(gm.citadelA, gm.citadelB, gm.throneA, gm.throneB);
 
         RefreshZoneUI();
+        RefreshCitadelThroneUI();
         UpdateMatchTimer();
         return _zonesBound && _matchBound;
     }
@@ -77,6 +83,60 @@ public class ObjectiveUIController : MonoBehaviour
         _zonesBound = false;
     }
 
+    private void BindCitadelThrone(CitadelHealth citadelA, CitadelHealth citadelB, ThroneCapture throneA, ThroneCapture throneB)
+    {
+        UnbindCitadelThrone();
+
+        _citadelA = citadelA;
+        _citadelB = citadelB;
+        _throneA = throneA;
+        _throneB = throneB;
+
+        if (_citadelA != null) SubscribeCitadel(_citadelA);
+        if (_citadelB != null) SubscribeCitadel(_citadelB);
+        if (_throneA != null) SubscribeThrone(_throneA);
+        if (_throneB != null) SubscribeThrone(_throneB);
+    }
+
+    private void UnbindCitadelThrone()
+    {
+        if (_citadelA != null) UnsubscribeCitadel(_citadelA);
+        if (_citadelB != null) UnsubscribeCitadel(_citadelB);
+        if (_throneA != null) UnsubscribeThrone(_throneA);
+        if (_throneB != null) UnsubscribeThrone(_throneB);
+
+        _citadelA = null;
+        _citadelB = null;
+        _throneA = null;
+        _throneB = null;
+    }
+
+    private void SubscribeCitadel(CitadelHealth citadel)
+    {
+        citadel.health.OnValueChanged += HandleCitadelChanged;
+        citadel.destroyed.OnValueChanged += HandleCitadelDestroyed;
+        citadel.ownerClientId.OnValueChanged += HandleCitadelOwnerChanged;
+    }
+
+    private void UnsubscribeCitadel(CitadelHealth citadel)
+    {
+        citadel.health.OnValueChanged -= HandleCitadelChanged;
+        citadel.destroyed.OnValueChanged -= HandleCitadelDestroyed;
+        citadel.ownerClientId.OnValueChanged -= HandleCitadelOwnerChanged;
+    }
+
+    private void SubscribeThrone(ThroneCapture throne)
+    {
+        throne.progress01.OnValueChanged += HandleThroneProgressChanged;
+        throne.ownerClientId.OnValueChanged += HandleThroneOwnerChanged;
+    }
+
+    private void UnsubscribeThrone(ThroneCapture throne)
+    {
+        throne.progress01.OnValueChanged -= HandleThroneProgressChanged;
+        throne.ownerClientId.OnValueChanged -= HandleThroneOwnerChanged;
+    }
+
     private void SubscribeZone(ObjectiveZone zone)
     {
         zone.ownerClientId.OnValueChanged += HandleOwnerChanged;
@@ -104,6 +164,31 @@ public class ObjectiveUIController : MonoBehaviour
     private void HandleContestedChanged(bool oldValue, bool newValue)
     {
         RefreshZoneUI();
+    }
+
+    private void HandleCitadelChanged(int oldValue, int newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleCitadelDestroyed(bool oldValue, bool newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleCitadelOwnerChanged(ulong oldValue, ulong newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleThroneProgressChanged(float oldValue, float newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleThroneOwnerChanged(ulong oldValue, ulong newValue)
+    {
+        RefreshCitadelThroneUI();
     }
 
     private void BindMatch()
@@ -149,6 +234,13 @@ public class ObjectiveUIController : MonoBehaviour
         var gm = GameManager.Instance;
         if (gm == null) return;
         if (NetworkManager.Singleton == null) return;
+        if (MatchManager.Instance != null && !MatchManager.Instance.EnableObjectiveZones)
+        {
+            if (gm.dangerCaptureBar != null) gm.dangerCaptureBar.gameObject.SetActive(false);
+            if (gm.myCaptureBar != null) gm.myCaptureBar.gameObject.SetActive(false);
+            if (gm.captureStateText != null) gm.captureStateText.gameObject.SetActive(false);
+            return;
+        }
 
         ulong myId = NetworkManager.Singleton.LocalClientId;
         _myZone = null;
@@ -202,6 +294,71 @@ public class ObjectiveUIController : MonoBehaviour
                 gm.captureStateText.text = "";
 
             gm.captureStateText.gameObject.SetActive(race || contested);
+        }
+    }
+
+    private void RefreshCitadelThroneUI()
+    {
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+        if (NetworkManager.Singleton == null) return;
+
+        ulong myId = NetworkManager.Singleton.LocalClientId;
+
+        CitadelHealth enemyCitadel = null;
+        if (_citadelA != null && _citadelA.ownerClientId.Value != myId) enemyCitadel = _citadelA;
+        if (_citadelB != null && _citadelB.ownerClientId.Value != myId) enemyCitadel = _citadelB;
+
+        if (enemyCitadel != null && enemyCitadel.ownerClientId.Value != ulong.MaxValue)
+        {
+            float max = Mathf.Max(1, enemyCitadel.MaxHealth);
+            float value = enemyCitadel.destroyed.Value ? 0 : enemyCitadel.health.Value;
+
+            if (gm.enemyCitadelBar != null)
+            {
+                gm.enemyCitadelBar.maxValue = max;
+                gm.enemyCitadelBar.value = value;
+                gm.enemyCitadelBar.gameObject.SetActive(true);
+            }
+
+            if (gm.enemyCitadelText != null)
+            {
+                gm.enemyCitadelText.text = enemyCitadel.destroyed.Value
+                    ? "ENEMY CITADEL DESTROYED"
+                    : $"ENEMY CITADEL {value:0}/{max:0}";
+                gm.enemyCitadelText.gameObject.SetActive(true);
+            }
+        }
+        else
+        {
+            if (gm.enemyCitadelBar != null) gm.enemyCitadelBar.gameObject.SetActive(false);
+            if (gm.enemyCitadelText != null) gm.enemyCitadelText.gameObject.SetActive(false);
+        }
+
+        ThroneCapture activeThrone = null;
+        if (_throneA != null && _throneA.progress01.Value > 0f) activeThrone = _throneA;
+        if (_throneB != null && _throneB.progress01.Value > 0f) activeThrone = _throneB;
+
+        if (activeThrone != null)
+        {
+            float value = activeThrone.progress01.Value;
+            if (gm.throneCaptureBar != null)
+            {
+                gm.throneCaptureBar.value = value;
+                gm.throneCaptureBar.gameObject.SetActive(true);
+            }
+
+            if (gm.throneCaptureText != null)
+            {
+                bool enemyThrone = activeThrone.ownerClientId.Value != myId;
+                gm.throneCaptureText.text = enemyThrone ? "CAPTURING ENEMY THRONE" : "ENEMY CAPTURING";
+                gm.throneCaptureText.gameObject.SetActive(true);
+            }
+        }
+        else
+        {
+            if (gm.throneCaptureBar != null) gm.throneCaptureBar.gameObject.SetActive(false);
+            if (gm.throneCaptureText != null) gm.throneCaptureText.gameObject.SetActive(false);
         }
     }
 

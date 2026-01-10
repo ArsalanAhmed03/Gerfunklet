@@ -14,6 +14,7 @@ public class MatchManager : NetworkBehaviour
 
     public float LoadoutSelectSeconds => loadoutSelectSeconds;
     public bool IsTeamAssignmentReady => PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue;
+    public bool EnableObjectiveZones => enableObjectiveZones;
 
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
@@ -38,6 +39,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float endScreenSeconds = 3f;      // delay after round/match result shown
     [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
     [SerializeField] private float overtimeSeconds = 60f;
+    [SerializeField] private bool enableObjectiveZones = false;
 
     [Header("Match Timer")]
     [SerializeField] private float matchSeconds = 180f;
@@ -532,6 +534,26 @@ public class MatchManager : NetworkBehaviour
         else if (winnerClientId == b) PlayerBWins.Value++;
     }
 
+    public void EndMatchImmediateServer(ulong winnerClientId)
+    {
+        if (!IsServer) return;
+        if (_roundEnding) return;
+
+        _roundEnding = true;
+        SetGameplayEnabledClientRpc(false);
+
+        PlayerAWins.Value = 0;
+        PlayerBWins.Value = 0;
+        if (winnerClientId == PlayerAClientId.Value) PlayerAWins.Value = roundsToWin;
+        else if (winnerClientId == PlayerBClientId.Value) PlayerBWins.Value = roundsToWin;
+
+        Phase.Value = (int)MatchPhase.MatchEnded;
+        WinnerClientId.Value = winnerClientId;
+
+        ShowEndScreenClientRpc(winnerClientId, EndScreenKind.Match);
+        StartCoroutine(MatchEndCooldownRoutine());
+    }
+
     [ClientRpc]
     private void SetGameplayEnabledClientRpc(bool enabled)
     {
@@ -604,6 +626,7 @@ public class MatchManager : NetworkBehaviour
         DespawnAllMinionsServer();
         ResetAllTilesServer();
         ResetAllZonesServer();
+        ResetAllMillstonesServer();
 
         if (LocalSpawner.Instance != null)
             LocalSpawner.Instance.RespawnAllPlayersAtSpawnsServer();
@@ -683,6 +706,15 @@ public class MatchManager : NetworkBehaviour
         var tiles = FindObjectsOfType<TileBehaviour>(true);
         foreach (var t in tiles)
             t.ResetTileForNewRoundServer();
+    }
+
+    private void ResetAllMillstonesServer()
+    {
+        if (!IsServer) return;
+
+        var heads = FindObjectsOfType<MillstoneHead>(true);
+        foreach (var h in heads)
+            h.ResetToHomeServer();
     }
 
     private void TryStartCountdown()

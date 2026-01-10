@@ -57,7 +57,15 @@ public class MinionAI : NetworkBehaviour
     private void AttackTarget()
     {
         Debug.Log($"{gameObject.name} attacks {target.name} for {damage} damage!");
-        target.GetComponent<PlayerStatsManager>()?.TakeDamageServerRpc(damage);
+        var citadel = target.GetComponent<CitadelHealth>();
+        if (citadel != null)
+        {
+            citadel.ApplyDamageServer(damage);
+        }
+        else
+        {
+            target.GetComponent<PlayerStatsManager>()?.TakeDamageServerRpc(damage);
+        }
         Destroy(gameObject);
     }
 }

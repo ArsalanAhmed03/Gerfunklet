@@ -125,6 +125,19 @@ public class LocalSpawner : NetworkBehaviour
         }
     }
 
+    private CitadelHealth FindEnemyCitadel(ulong ownerClientId)
+    {
+        var citadels = FindObjectsOfType<CitadelHealth>(true);
+        foreach (var c in citadels)
+        {
+            if (c == null) continue;
+            if (c.ownerClientId.Value == ulong.MaxValue) continue;
+            if (c.ownerClientId.Value == ownerClientId) continue;
+            return c;
+        }
+        return null;
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void SpawnMinionForClientServerRpc(ulong clientId)
     {
@@ -169,11 +182,19 @@ public class LocalSpawner : NetworkBehaviour
             var minionAI = minionInstance.GetComponent<MinionAI>();
             if (minionAI != null)
             {
-                foreach (var kvp in spawnedPlayers)
+                var targetCitadel = FindEnemyCitadel(clientId);
+                if (targetCitadel != null && !targetCitadel.destroyed.Value)
                 {
-                    if (kvp.Key == clientId) continue;
-                    minionAI.target = kvp.Value?.transform;
-                    break;
+                    minionAI.target = targetCitadel.transform;
+                }
+                else
+                {
+                    foreach (var kvp in spawnedPlayers)
+                    {
+                        if (kvp.Key == clientId) continue;
+                        minionAI.target = kvp.Value?.transform;
+                        break;
+                    }
                 }
             }
 

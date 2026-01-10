@@ -21,6 +21,10 @@ public class StunReceiver : NetworkBehaviour
 
         isStunned.Value = true;
         stunEndTime = Time.time + duration;
+
+        var carrier = GetComponent<MillstoneCarrier>();
+        if (carrier != null && carrier.IsCarrying.Value)
+            carrier.DropCarriedHeadServer();
     }
 
     private void Update()

@@ -15,9 +15,21 @@ public class GameManager : MonoBehaviour
     public Slider myCaptureBar;          // me capturing enemy zone
     public TextMeshProUGUI captureStateText;
 
+    [Header("Citadel/Throne UI")]
+    public Slider enemyCitadelBar;
+    public TextMeshProUGUI enemyCitadelText;
+    public Slider throneCaptureBar;
+    public TextMeshProUGUI throneCaptureText;
+
     [Header("Objective Zones")]
     public ObjectiveZone zoneA;
     public ObjectiveZone zoneB;
+
+    [Header("Citadel/Throne Objects")]
+    public CitadelHealth citadelA;
+    public CitadelHealth citadelB;
+    public ThroneCapture throneA;
+    public ThroneCapture throneB;
 
     [Header("Optional Match UI")]
     [SerializeField] private TextMeshProUGUI statusText;      // "Waiting / Countdown / Playing / Overtime / Ended"

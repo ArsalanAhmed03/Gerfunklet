@@ -6,6 +6,7 @@ public class PlayerMovement : NetworkBehaviour
 {
     [Header("Movement Settings")]
     public float moveSpeed = 5f;
+    [SerializeField] private float carryMoveSpeedMultiplier = 0.75f;
 
     [Header("Input Action Asset")]
     public InputActionAsset playerInputActions; // Assign in Inspector
@@ -19,6 +20,8 @@ public class PlayerMovement : NetworkBehaviour
     private InputAction ability2Action;
     private InputAction ability3Action;
     private InputAction ability4Action;
+    private InputAction millstoneDropAction;
+    private InputAction millstoneThrowAction;
 
     [Header("Animation")]
     public PlayerAnimator playerAnimator;
@@ -36,6 +39,8 @@ public class PlayerMovement : NetworkBehaviour
             ability2Action = playerMap.FindAction("Ability2");
             ability3Action = playerMap.FindAction("Ability3");
             ability4Action = playerMap.FindAction("Ability4");
+            millstoneDropAction = playerMap.FindAction("MillstoneDrop", false);
+            millstoneThrowAction = playerMap.FindAction("MillstoneThrow", false);
 
         }
     }
@@ -50,6 +55,8 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Enable();
         ability3Action?.Enable();
         ability4Action?.Enable();
+        millstoneDropAction?.Enable();
+        millstoneThrowAction?.Enable();
 
     }
 
@@ -63,6 +70,8 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Disable();
         ability3Action?.Disable();
         ability4Action?.Disable();
+        millstoneDropAction?.Disable();
+        millstoneThrowAction?.Disable();
 
     }
 
@@ -93,6 +102,11 @@ public class PlayerMovement : NetworkBehaviour
             // transform.Translate(move.normalized * moveSpeed * Time.deltaTime, Space.World);
             var buff = GetComponent<BuffReceiver>();
             float speedMul = buff != null ? buff.MoveSpeedMultiplier : 1f;
+
+            var millstoneCarrier = GetComponent<MillstoneCarrier>();
+            if (millstoneCarrier != null && millstoneCarrier.IsCarrying.Value)
+                speedMul *= carryMoveSpeedMultiplier;
+
             transform.Translate(move.normalized * moveSpeed * speedMul * Time.deltaTime, Space.World);
 
             // Rotate to face direction
@@ -162,6 +176,20 @@ public class PlayerMovement : NetworkBehaviour
             {
                 Debug.Log("Casting ability slot 3");
                 abilityRunner.TryCastSlot(3);
+            }
+        }
+
+        var carrier = GetComponent<MillstoneCarrier>();
+        if (carrier != null && carrier.IsCarrying.Value)
+        {
+            if (millstoneDropAction != null && millstoneDropAction.WasPressedThisFrame())
+            {
+                carrier.DropCarriedHeadServerRpc();
+            }
+
+            if (millstoneThrowAction != null && millstoneThrowAction.WasPressedThisFrame())
+            {
+                carrier.ThrowCarriedHeadServerRpc(transform.forward);
             }
         }
 
