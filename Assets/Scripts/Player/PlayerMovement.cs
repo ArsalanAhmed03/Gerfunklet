@@ -25,6 +25,8 @@ public class PlayerMovement : NetworkBehaviour
     private InputAction ability4Action;
     private InputAction millstoneDropAction;
     private InputAction millstoneThrowAction;
+    private InputAction restAction;
+    private InputAction wakeAction;
 
     [Header("Animation")]
     public PlayerAnimator playerAnimator;
@@ -44,6 +46,8 @@ public class PlayerMovement : NetworkBehaviour
             ability4Action = playerMap.FindAction("Ability4");
             millstoneDropAction = playerMap.FindAction("MillstoneDrop", false);
             millstoneThrowAction = playerMap.FindAction("MillstoneThrow", false);
+            restAction = playerMap.FindAction("Rest", false);
+            wakeAction = playerMap.FindAction("Wake", false);
 
         }
     }
@@ -60,6 +64,8 @@ public class PlayerMovement : NetworkBehaviour
         ability4Action?.Enable();
         millstoneDropAction?.Enable();
         millstoneThrowAction?.Enable();
+        restAction?.Enable();
+        wakeAction?.Enable();
 
     }
 
@@ -75,6 +81,8 @@ public class PlayerMovement : NetworkBehaviour
         ability4Action?.Disable();
         millstoneDropAction?.Disable();
         millstoneThrowAction?.Disable();
+        restAction?.Disable();
+        wakeAction?.Disable();
 
     }
 
@@ -84,6 +92,22 @@ public class PlayerMovement : NetworkBehaviour
         if (GameManager.Instance != null && !GameManager.Instance.GameplayEnabled) return;
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned)
+        {
+            playerAnimator?.SetMoving(false);
+            return;
+        }
+
+        var statsManager = GetComponent<PlayerStatsManager>();
+        if (statsManager != null)
+        {
+            if (restAction != null && restAction.WasPressedThisFrame())
+                statsManager.RequestSleepServerRpc();
+
+            if (wakeAction != null && wakeAction.WasPressedThisFrame())
+                statsManager.RequestWakeServerRpc();
+        }
+
+        if (statsManager != null && statsManager.IsSleeping)
         {
             playerAnimator?.SetMoving(false);
             return;
@@ -124,25 +148,17 @@ public class PlayerMovement : NetworkBehaviour
             playerAnimator?.SetMoving(false);
         }
 
-        var statsManager = GetComponent<PlayerStatsManager>();
         // Attack logic
-        if (attackAction != null && statsManager != null && statsManager.getStamina() >= 10)
+        if (attackAction != null && attackAction.WasPressedThisFrame())
         {
-            if (attackAction.WasPressedThisFrame())
-            {
-                Debug.Log("Attack!");
-                // Trigger attack animation
-                // playerAnimator?.Attack();
-                if (statsManager != null)
-                {
-                    statsManager.modifyStamina(-10);
-                }
+            Debug.Log("Attack!");
+            // Trigger attack animation
+            // playerAnimator?.Attack();
 
-                if (debugSpawnMinionOnAttack && LocalSpawner.Instance != null)
-                {
-                    Debug.Log("Requesting minion spawn from server...");
-                    LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);
-                }
+            if (debugSpawnMinionOnAttack && LocalSpawner.Instance != null)
+            {
+                Debug.Log("Requesting minion spawn from server...");
+                LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);
             }
         }
 

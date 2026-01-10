@@ -91,6 +91,9 @@ public class AbilityRunner : NetworkBehaviour
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned) return;
 
+        var stats = GetComponent<PlayerStatsManager>();
+        if (stats != null && stats.IsSleeping) return;
+
         if (slotIndex < 0 || slotIndex > 3) return;
 
         // IMPORTANT: gate on replicated ids, not on ScriptableObject refs
@@ -112,6 +115,9 @@ public class AbilityRunner : NetworkBehaviour
 
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned) return;
+
+        var stats = GetComponent<PlayerStatsManager>();
+        if (stats != null && stats.IsSleeping) return;
 
         var id = GetSlotId(slotIndex);
         if (id == AbilityId.None) return;

@@ -8,11 +8,22 @@ public class PlayerStatsManager : NetworkBehaviour
 {
     [Header("Player Stats Configuration")]
     [SerializeField] private int maxHealth = 100;
-    [SerializeField] private int maxStamina = 100;
+    [Header("Stamina (GDD defaults)")]
+    [SerializeField] private float maxStamina = 600f;
+    [SerializeField] private float activeDrainPercentPerSec = 0.40f;
+    [SerializeField] private float carryExtraDrainPercentPerSec = 0.5f;
+    [SerializeField] private float regenOnThronePerSec = 1.3f;
+    [SerializeField] private float regenOnGroundPerSec = 0.8f;
+    [SerializeField] private float underFirePenalty = 0.4f;
+    [SerializeField] private float underFireSeconds = 1.0f;
+    [SerializeField] private float manualRestMinPercent = 0.10f;
+    [SerializeField] private float autoWakePercent = 0.25f;
+    [SerializeField] private float safeEnemyRadius = 2.5f;
+    [SerializeField] private float safeEnemySeconds = 1.0f;
+    [SerializeField] private float throneRegenRadius = 2.5f;
+    [SerializeField] private LayerMask enemyCheckMask;
 
     [SerializeField] private int startingPoints = 0;
-
-    [SerializeField] private int stamina = 100;
 
     [Header("Debug")]
     [SerializeField] private bool debugMode = true;
@@ -36,9 +47,22 @@ public class PlayerStatsManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private NetworkVariable<float> stamina = new NetworkVariable<float>(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> isSleeping = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     // Events for UI and other systems to subscribe to
     public event Action<int, int> OnHealthChanged; // (newHealth, maxHealth)
     public event Action<int> OnPointsChanged; // (newPoints)
+    public event Action<float, float, bool> OnStaminaChanged; // (current, max, sleeping)
     public event Action OnPlayerDied;
     public event Action OnPlayerRespawned;
 
@@ -47,18 +71,33 @@ public class PlayerStatsManager : NetworkBehaviour
     public int MaxHealth => maxHealth;
     public int Points => points.Value;
     public bool IsAlive => isAlive.Value;
-
-
-    private float staminaTickTimer = 0f;
+    public float Stamina => stamina.Value;
+    public float MaxStamina => maxStamina;
+    public bool IsSleeping => isSleeping.Value;
+    private float _lastDamageTime;
+    private float _safeSince;
+    private bool _forcedWakeUsed;
+    private float _nextThroneCheckTime;
+    private bool _cachedOnThrone;
 
     void Update()
     {
-        if (!IsOwner || !isAlive.Value) return;
-        staminaTickTimer += Time.deltaTime;
-        if (staminaTickTimer >= 1f && stamina < maxStamina)
+        if (!IsServer) return;
+        if (!isAlive.Value) return;
+
+        float dt = Time.deltaTime;
+        if (dt <= 0f) return;
+
+        if (isSleeping.Value)
         {
-            modifyStamina(2);
-            staminaTickTimer = 0f;
+            RegenStaminaServer(dt);
+            TryAutoWakeServer();
+        }
+        else
+        {
+            DrainStaminaServer(dt);
+            if (stamina.Value <= 0f)
+                EnterSleepServer();
         }
     }
 
@@ -69,17 +108,23 @@ public class PlayerStatsManager : NetworkBehaviour
             health.Value = maxHealth;
             points.Value = startingPoints;
             isAlive.Value = true;
+            stamina.Value = maxStamina;
+            isSleeping.Value = false;
+            _lastDamageTime = -999f;
+            _safeSince = 0f;
+            _forcedWakeUsed = false;
         }
 
         if (IsOwner)
         {
-            stamina = maxStamina;
             UpdateStaminaUI();
         }
 
         health.OnValueChanged += OnHealthValueChanged;
         points.OnValueChanged += OnPointsValueChanged;
         isAlive.OnValueChanged += OnAliveStatusChanged;
+        stamina.OnValueChanged += OnStaminaValueChanged;
+        isSleeping.OnValueChanged += OnSleepingChanged;
 
         if (debugMode)
             Debug.Log($"PlayerStatsManager initialized for {(IsOwner ? "Owner" : "Non-Owner")}");
@@ -92,6 +137,8 @@ public class PlayerStatsManager : NetworkBehaviour
         health.OnValueChanged -= OnHealthValueChanged;
         points.OnValueChanged -= OnPointsValueChanged;
         isAlive.OnValueChanged -= OnAliveStatusChanged;
+        stamina.OnValueChanged -= OnStaminaValueChanged;
+        isSleeping.OnValueChanged -= OnSleepingChanged;
     }
 
     #region Health Management
@@ -102,6 +149,7 @@ public class PlayerStatsManager : NetworkBehaviour
         Debug.Log("TakeDamageServerRpc called on server");
 
         if (!isAlive.Value) return;
+        if (isSleeping.Value) return;
         if (damage <= 0) return;
 
         var dmg = damage;
@@ -112,6 +160,7 @@ public class PlayerStatsManager : NetworkBehaviour
 
         int newHealth = Mathf.Max(0, health.Value - dmg);
         health.Value = newHealth;
+        _lastDamageTime = Time.time;
         UpdateHealthUIClientRpc(newHealth);
         if (debugMode)
             Debug.Log($"[SERVER] Player took {dmg} damage. Health: {newHealth}/{maxHealth}");
@@ -260,6 +309,11 @@ public class PlayerStatsManager : NetworkBehaviour
 
         health.Value = maxHealth;
         isAlive.Value = true;
+        stamina.Value = maxStamina;
+        isSleeping.Value = false;
+        _lastDamageTime = -999f;
+        _safeSince = 0f;
+        _forcedWakeUsed = false;
         UpdateHealthUIClientRpc(health.Value);
 
         if (debugMode)
@@ -321,23 +375,158 @@ public class PlayerStatsManager : NetworkBehaviour
         return true;
     }
 
-    public void modifyStamina(int amount)
+    [ServerRpc]
+    public void RequestSleepServerRpc(ServerRpcParams rpcParams = default)
     {
-        if (amount > 0)
-        {
-            amount = amount + stamina > maxStamina ? maxStamina - stamina : amount;
-        }
-        else
-        {
-            amount = amount + stamina < 0 ? -stamina : amount;
-        }
-        stamina += amount;
-        UpdateStaminaUI();
+        if (!IsServer) return;
+        if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
+        if (isSleeping.Value) return;
+
+        float minRequired = maxStamina * manualRestMinPercent;
+        if (stamina.Value < minRequired) return;
+
+        EnterSleepServer();
     }
 
-    public int getStamina()
+    [ServerRpc]
+    public void RequestWakeServerRpc(ServerRpcParams rpcParams = default)
     {
-        return stamina;
+        if (!IsServer) return;
+        if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
+        if (!isSleeping.Value) return;
+
+        float required = maxStamina * autoWakePercent;
+        if (stamina.Value < required) return;
+        if (_forcedWakeUsed) return;
+
+        _forcedWakeUsed = true;
+        WakeUpServer();
+    }
+
+    #endregion
+
+    #region Stamina (GDD)
+
+    private void DrainStaminaServer(float dt)
+    {
+        float drainPercent = activeDrainPercentPerSec;
+        if (IsCarrying())
+            drainPercent += carryExtraDrainPercentPerSec;
+
+        float drainPerSec = (drainPercent / 100f) * maxStamina;
+        stamina.Value = Mathf.Max(0f, stamina.Value - drainPerSec * dt);
+    }
+
+    private void RegenStaminaServer(float dt)
+    {
+        float regen = IsOnOwnThrone() ? regenOnThronePerSec : regenOnGroundPerSec;
+        if (Time.time - _lastDamageTime <= underFireSeconds)
+            regen *= (1f - underFirePenalty);
+
+        stamina.Value = Mathf.Min(maxStamina, stamina.Value + regen * dt);
+    }
+
+    private void EnterSleepServer()
+    {
+        if (!IsServer) return;
+        if (isSleeping.Value) return;
+
+        isSleeping.Value = true;
+        _safeSince = 0f;
+        _forcedWakeUsed = false;
+    }
+
+    private void WakeUpServer()
+    {
+        if (!IsServer) return;
+        if (!isSleeping.Value) return;
+
+        isSleeping.Value = false;
+        _safeSince = 0f;
+    }
+
+    private void TryAutoWakeServer()
+    {
+        float required = maxStamina * autoWakePercent;
+        if (stamina.Value < required)
+        {
+            _safeSince = 0f;
+            return;
+        }
+
+        if (IsEnemyNearby())
+        {
+            _safeSince = 0f;
+            return;
+        }
+
+        if (_safeSince <= 0f)
+            _safeSince = Time.time;
+
+        if (Time.time - _safeSince >= safeEnemySeconds)
+            WakeUpServer();
+    }
+
+    private bool IsCarrying()
+    {
+        var carrier = GetComponent<MillstoneCarrier>();
+        return carrier != null && carrier.IsCarrying.Value;
+    }
+
+    private bool IsOnOwnThrone()
+    {
+        if (Time.time < _nextThroneCheckTime)
+            return _cachedOnThrone;
+
+        _nextThroneCheckTime = Time.time + 0.25f;
+        _cachedOnThrone = false;
+
+        var thrones = FindObjectsOfType<ThroneCapture>(true);
+        foreach (var t in thrones)
+        {
+            if (t == null) continue;
+            if (t.ownerClientId.Value != OwnerClientId) continue;
+
+            float sqr = (t.transform.position - transform.position).sqrMagnitude;
+            if (sqr <= throneRegenRadius * throneRegenRadius)
+            {
+                _cachedOnThrone = true;
+                break;
+            }
+        }
+
+        return _cachedOnThrone;
+    }
+
+    private bool IsEnemyNearby()
+    {
+        int mask = enemyCheckMask.value != 0 ? enemyCheckMask.value : LayerMask.GetMask("Player");
+        var hits = Physics.OverlapSphere(transform.position, safeEnemyRadius, mask, QueryTriggerInteraction.Ignore);
+        foreach (var col in hits)
+        {
+            var no = col.GetComponentInParent<NetworkObject>();
+            if (no == null) continue;
+            if (no.OwnerClientId == OwnerClientId) continue;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void UpdateStaminaUI()
+    {
+        if (GameManager.Instance == null || GameManager.Instance.staminaBar == null)
+            return;
+
+        var bar = GameManager.Instance.staminaBar;
+        bar.value = maxStamina <= 0f ? 0f : stamina.Value / maxStamina;
+
+        var staminaText = bar.GetComponentInChildren<TextMeshProUGUI>();
+        if (staminaText != null)
+        {
+            string state = isSleeping.Value ? "SLEEPING" : "STAMINA";
+            staminaText.text = $"{state}: {Mathf.CeilToInt(stamina.Value)}";
+        }
     }
 
     #endregion
@@ -359,6 +548,20 @@ public class PlayerStatsManager : NetworkBehaviour
 
         if (debugMode)
             Debug.Log($"Points changed: {oldPoints} -> {newPoints}");
+    }
+
+    private void OnStaminaValueChanged(float oldValue, float newValue)
+    {
+        if (!IsOwner) return;
+        OnStaminaChanged?.Invoke(newValue, maxStamina, isSleeping.Value);
+        UpdateStaminaUI();
+    }
+
+    private void OnSleepingChanged(bool oldValue, bool newValue)
+    {
+        if (!IsOwner) return;
+        OnStaminaChanged?.Invoke(stamina.Value, maxStamina, newValue);
+        UpdateStaminaUI();
     }
 
     private void OnAliveStatusChanged(bool wasAlive, bool nowAlive)
@@ -431,30 +634,13 @@ public class PlayerStatsManager : NetworkBehaviour
         health.Value = maxHealth;
         points.Value = startingPoints;
         isAlive.Value = true;
+        stamina.Value = maxStamina;
+        isSleeping.Value = false;
+        _lastDamageTime = -999f;
+        _safeSince = 0f;
+        _forcedWakeUsed = false;
 
         // also update owner UI immediately
         UpdateHealthUIClientRpc(health.Value);
-
-        // stamina is local, so tell owner client to reset it
-        ResetStaminaOwnerClientRpc();
-    }
-
-    [ClientRpc]
-    private void ResetStaminaOwnerClientRpc()
-    {
-        if (!IsOwner) return;
-        stamina = maxStamina;
-
-        UpdateStaminaUI();
-    }
-
-    private void UpdateStaminaUI()
-    {
-        if (GameManager.Instance == null || GameManager.Instance.staminaBar == null)
-            return;
-
-        GameManager.Instance.staminaBar.value = (float)stamina / maxStamina;
-        var staminaText = GameManager.Instance.staminaBar.GetComponentInChildren<TextMeshProUGUI>();
-        if (staminaText != null) staminaText.text = $"Stamina: {stamina}";
     }
 }

@@ -1710,10 +1710,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  maxHealth: 100
+  maxHealth: 600
   maxStamina: 100
+  activeDrainPercentPerSec: 0.4
+  carryExtraDrainPercentPerSec: 0.5
+  regenOnThronePerSec: 1.3
+  regenOnGroundPerSec: 0.8
+  underFirePenalty: 0.4
+  underFireSeconds: 1
+  manualRestMinPercent: 0.1
+  autoWakePercent: 0.25
+  safeEnemyRadius: 2.5
+  safeEnemySeconds: 1
+  throneRegenRadius: 2.5
+  enemyCheckMask:
+    serializedVersion: 2
+    m_Bits: 64
   startingPoints: 20
-  stamina: 100
   debugMode: 1
 --- !u!54 &5555323920800787725
 Rigidbody:
