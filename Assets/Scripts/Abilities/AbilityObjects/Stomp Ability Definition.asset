@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Stomp Ability Definition
   m_EditorClassIdentifier: 
   id: 0
-  cooldownSeconds: 6
+  cooldownSeconds: 12
   radius: 2.6
-  damage: 40
-  stunSeconds: 1.25
-  attackerStunOnParry: 0
+  damage: 160
+  stunSeconds: 0.25
+  attackerStunOnParry: 0.4

@@ -5,15 +5,14 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Current Rules (Implemented)
 
 ### Match Flow
-- Phases: WaitingForPlayers -> LoadoutSelect -> Countdown -> Playing -> Overtime -> RoundEnded -> MatchEnded.
+- Phases: WaitingForPlayers -> Ready/Mulligan (LoadoutSelect) -> Countdown -> Playing -> Overtime -> RoundEnded -> MatchEnded.
 - Match timer: counts down during Playing; when it reaches 0, phase switches to Overtime.
 - Rounds: best-of-3 (first to 2 round wins).
 
 ### Win Conditions (Current Build)
-- A round ends when a player dies or an objective zone completes a capture channel.
 - A match ends immediately when a Millstone is planted at the enemy altar (primary path).
 - A match can also end by destroying the enemy Citadel and completing a Throne channel.
-- A match ends when a player reaches the round win threshold.
+- Rounds still exist (best-of-3); overtime ending can force a round draw.
 
 ### Loadout System
 - Each player selects 4 unique abilities during LoadoutSelect.
@@ -25,7 +24,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Rally: move speed buff applied only to characters owned by the caster.
 - Parry: timed defense window, server-authoritative.
 - Throw: spawns a server-authoritative projectile.
-- Fortify: damage reduction for a duration.
+- Non-GDD abilities (like Fortify) are blocked by loadout validation and not usable.
 
 ### Spawning
 - Players are spawned as player objects by the server at scene load.
@@ -44,8 +43,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 
 ## Implemented But Diverging From GDD
 - GDD Rally includes attack speed and ally/minion buffs; current implementation only applies move speed and only to caster-owned characters.
-- Player death still ends a round (not in GDD).
 - Objective zones still exist in the scene flow, but are disabled by default in `MatchManager`.
+- Best-of-3 rounds are still in use; the GDD does not define rounds yet.
 - GDD respawn delay: 8s; current build resets on round reset without a per-player respawn timer.
 - GDD overtime is a fixed 1:00 with bonuses; current build caps overtime at 60s but does not apply bonuses.
 - Millstone throw/drop is implemented, but reclaim/contest rules are simplified (any player can pick up a dropped head after a 1s hold).

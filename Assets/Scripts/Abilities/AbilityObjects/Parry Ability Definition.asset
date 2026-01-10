@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 2
   cooldownSeconds: 8
-  windowSeconds: 0.75
+  windowSeconds: 0.22

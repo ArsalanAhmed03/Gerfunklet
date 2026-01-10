@@ -40,6 +40,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float endScreenSeconds = 3f;      // delay after round/match result shown
     [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
     [SerializeField] private float overtimeSeconds = 60f;
+    [SerializeField] private bool enableDeathEndsRound = false;
     [SerializeField] private bool enableObjectiveZones = false;
     [SerializeField] private bool enableAbilityLoadoutUI = false;
     [SerializeField] private AbilityId[] defaultAbilityLoadout = new AbilityId[4]
@@ -410,6 +411,7 @@ public class MatchManager : NetworkBehaviour
 
         var phase = (MatchPhase)Phase.Value;
         if (phase != MatchPhase.Playing && phase != MatchPhase.Overtime) return;
+        if (!enableDeathEndsRound) return;
 
         ulong winner = GetOtherClient(deadClientId);
         EndRoundServer(winner);
@@ -782,7 +784,12 @@ public class MatchManager : NetworkBehaviour
 
     private bool IsAllowedAbility(AbilityId id)
     {
-        // Minimal rule: only abilities that exist in the database are allowed
+        bool gddAbility = id == AbilityId.Stomp ||
+                          id == AbilityId.Rally ||
+                          id == AbilityId.Parry ||
+                          id == AbilityId.Throw;
+
+        if (!gddAbility) return false;
         return _defById != null && _defById.ContainsKey(id);
     }
 

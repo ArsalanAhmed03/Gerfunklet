@@ -152,7 +152,13 @@ public class GameManager : MonoBehaviour
     private void HandlePhaseChanged(MatchManager.MatchPhase phase)
     {
         if (statusText != null)
-            statusText.text = phase.ToString();
+        {
+            statusText.text = phase switch
+            {
+                MatchManager.MatchPhase.LoadoutSelect => "Ready/Mulligan",
+                _ => phase.ToString()
+            };
+        }
     }
 
     private void HandleRoundChanged(int round)
