@@ -45,7 +45,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Stamina is server-authoritative (max 600) and drains while active; extra drain applies while carrying the Millstone.
 - At 0 stamina, the Gerfunklet sleeps (invulnerable, inert).
 - Stamina regens while sleeping (throne vs ground rates) with an under-fire penalty.
-- Auto-wake occurs at 25% stamina when safe; optional forced wake and manual rest are available via RPC (input not wired yet).
+- Auto-wake occurs at 25% stamina when safe; optional forced wake and manual rest are available via `Rest`/`Wake` input actions.
+- Feast ring: allied minions can deliver food piles; on wake up to 5 piles are consumed to restore stamina and grant Well-Fed (+1.0/s for 6s per stack, max 5 stacks).
 
 ## Implemented But Diverging From GDD
 - GDD Rally includes attack speed and ally/minion buffs; current implementation only applies move speed and only to caster-owned characters.
@@ -60,7 +61,6 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Not Yet Implemented (GDD)
 - Full Citadel/Throne flow (structure attacks, siege units, damage tuning).
 - Advanced card-hand UX (drag/ghost previews, placement feedback, card cooldown/GCD UI).
-- Feast/food delivery mechanics and sleeping HUD controls.
 - Devour and Super abilities.
 - Buildables and minion roster variety.
 - Overtime bonuses (ATP regen bonus, warmup/citadel modifiers).
@@ -71,12 +71,16 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Set `LocalSpawner.minionAtpCost` to match the intended minion cost (default is 2).
 - Add an `AtpUI` component to your HUD and wire its slider/text fields to display ATP.
 - Assign `GameManager.staminaBar` if you want the stamina UI to update.
+- Assign `GameManager.sleepingIndicator` (any GameObject) if you want a visible sleeping overlay.
 - Add `CardHand` to the player prefab and assign a `CardCatalog` (or default deck) to initialize cards.
 - Add `DeploymentRules` to the player prefab and optionally set `homeAnchor`, `baseDeployRadius`, `forwardDeployRadius`, and `midlineX`.
 - Add `CardPlacementController` to the player prefab or HUD and assign `placementMask` to your ground layer; optionally set input actions for place/cancel.
 - Assign `spawnPrefab` and `spawnWarmupSeconds` on each `CardDefinition` asset you want to be playable.
 - Add input actions named `MillstoneDrop` and `MillstoneThrow` to the Player action map if you want manual drop/throw controls.
 - Add input actions named `Rest` and `Wake` to the Player action map if you want manual sleep/force-wake controls.
+- Add `FeastRing` to the player prefab with a trigger collider (1.5 radius); it auto-assigns owner from the player `NetworkObject`.
+- Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
+- Add `FoodPile` prefabs (NetworkObject + trigger collider) to the scene to test delivery.
 - Add `CitadelHealth` to each Citadel object and assign each Throne’s `requiredCitadel`.
 - Add `ThroneCapture` to each Throne with a trigger collider.
 - Assign `GameManager.citadelA/citadelB` and `GameManager.throneA/throneB`, plus enemy Citadel/Throne UI sliders/text if you want HUD updates.

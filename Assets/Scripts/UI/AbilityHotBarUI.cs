@@ -7,10 +7,14 @@ public class AbilityHotbarUI : MonoBehaviour
     [Header("Icons")]
     [SerializeField] private Image[] buttonIcons = new Image[4];
     [SerializeField] private AbilityCatalog iconDb;
+    [SerializeField] private Color enabledTint = Color.white;
+    [SerializeField] private Color disabledTint = new Color(1f, 1f, 1f, 0.35f);
 
     private AbilityRunner _localRunner;
+    private PlayerStatsManager _localStats;
     private ulong _boundPlayerObjectId = ulong.MaxValue;
     private bool _forceRefresh;
+    private bool _lastSleeping;
 
     private void Awake()
     {
@@ -21,6 +25,7 @@ public class AbilityHotbarUI : MonoBehaviour
     {
         BindIfNeeded();
         RefreshIconsIfNeeded();
+        RefreshSleepTint();
     }
 
     private void BindIfNeeded()
@@ -37,6 +42,7 @@ public class AbilityHotbarUI : MonoBehaviour
         if (_localRunner != null && _boundPlayerObjectId == objectId) return;
 
         _localRunner = playerObj.GetComponent<AbilityRunner>();
+        _localStats = playerObj.GetComponent<PlayerStatsManager>();
         _boundPlayerObjectId = objectId;
         _forceRefresh = true;
     }
@@ -78,6 +84,21 @@ public class AbilityHotbarUI : MonoBehaviour
             buttonIcons[i].sprite = iconDb.GetIcon(id);
             buttonIcons[i].enabled = true;
         }
+
+        RefreshSleepTint();
     }
 
+    private void RefreshSleepTint()
+    {
+        bool sleeping = _localStats != null && _localStats.IsSleeping;
+        if (sleeping == _lastSleeping) return;
+        _lastSleeping = sleeping;
+
+        Color tint = sleeping ? disabledTint : enabledTint;
+        for (int i = 0; i < buttonIcons.Length; i++)
+        {
+            if (buttonIcons[i] != null && buttonIcons[i].enabled)
+                buttonIcons[i].color = tint;
+        }
+    }
 }

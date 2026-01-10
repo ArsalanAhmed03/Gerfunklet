@@ -201,6 +201,10 @@ public class LocalSpawner : NetworkBehaviour
                 }
             }
 
+            var ownerTag = minionInstance.GetComponent<MinionOwner>();
+            if (ownerTag != null)
+                ownerTag.SetOwnerServer(clientId);
+
             if (debugMode)
                 Debug.Log($"Minion spawned for client {clientId} at {spawnPosition}");
         }

@@ -59,6 +59,18 @@ public class PlayerStatsManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private NetworkVariable<int> wellFedStacks = new NetworkVariable<int>(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    [Header("Feast (GDD defaults)")]
+    [SerializeField] private int maxFeastConsumePiles = 5;
+    [SerializeField] private int wellFedMaxStacks = 5;
+    [SerializeField] private float wellFedRegenPerStack = 1.0f;
+    [SerializeField] private float wellFedDurationSeconds = 6f;
+
     // Events for UI and other systems to subscribe to
     public event Action<int, int> OnHealthChanged; // (newHealth, maxHealth)
     public event Action<int> OnPointsChanged; // (newPoints)
@@ -74,11 +86,13 @@ public class PlayerStatsManager : NetworkBehaviour
     public float Stamina => stamina.Value;
     public float MaxStamina => maxStamina;
     public bool IsSleeping => isSleeping.Value;
+    public int WellFedStacks => wellFedStacks.Value;
     private float _lastDamageTime;
     private float _safeSince;
     private bool _forcedWakeUsed;
     private float _nextThroneCheckTime;
     private bool _cachedOnThrone;
+    private float _wellFedEndTime;
 
     void Update()
     {
@@ -87,6 +101,8 @@ public class PlayerStatsManager : NetworkBehaviour
 
         float dt = Time.deltaTime;
         if (dt <= 0f) return;
+
+        UpdateWellFedServer();
 
         if (isSleeping.Value)
         {
@@ -110,9 +126,11 @@ public class PlayerStatsManager : NetworkBehaviour
             isAlive.Value = true;
             stamina.Value = maxStamina;
             isSleeping.Value = false;
+            wellFedStacks.Value = 0;
             _lastDamageTime = -999f;
             _safeSince = 0f;
             _forcedWakeUsed = false;
+            _wellFedEndTime = -999f;
         }
 
         if (IsOwner)
@@ -125,6 +143,7 @@ public class PlayerStatsManager : NetworkBehaviour
         isAlive.OnValueChanged += OnAliveStatusChanged;
         stamina.OnValueChanged += OnStaminaValueChanged;
         isSleeping.OnValueChanged += OnSleepingChanged;
+        wellFedStacks.OnValueChanged += OnWellFedStacksChanged;
 
         if (debugMode)
             Debug.Log($"PlayerStatsManager initialized for {(IsOwner ? "Owner" : "Non-Owner")}");
@@ -139,6 +158,7 @@ public class PlayerStatsManager : NetworkBehaviour
         isAlive.OnValueChanged -= OnAliveStatusChanged;
         stamina.OnValueChanged -= OnStaminaValueChanged;
         isSleeping.OnValueChanged -= OnSleepingChanged;
+        wellFedStacks.OnValueChanged -= OnWellFedStacksChanged;
     }
 
     #region Health Management
@@ -311,9 +331,11 @@ public class PlayerStatsManager : NetworkBehaviour
         isAlive.Value = true;
         stamina.Value = maxStamina;
         isSleeping.Value = false;
+        wellFedStacks.Value = 0;
         _lastDamageTime = -999f;
         _safeSince = 0f;
         _forcedWakeUsed = false;
+        _wellFedEndTime = -999f;
         UpdateHealthUIClientRpc(health.Value);
 
         if (debugMode)
@@ -414,7 +436,9 @@ public class PlayerStatsManager : NetworkBehaviour
             drainPercent += carryExtraDrainPercentPerSec;
 
         float drainPerSec = (drainPercent / 100f) * maxStamina;
-        stamina.Value = Mathf.Max(0f, stamina.Value - drainPerSec * dt);
+        float bonus = GetWellFedBonusPerSec();
+        float next = stamina.Value - drainPerSec * dt + bonus * dt;
+        stamina.Value = Mathf.Clamp(next, 0f, maxStamina);
     }
 
     private void RegenStaminaServer(float dt)
@@ -423,6 +447,7 @@ public class PlayerStatsManager : NetworkBehaviour
         if (Time.time - _lastDamageTime <= underFireSeconds)
             regen *= (1f - underFirePenalty);
 
+        regen += GetWellFedBonusPerSec();
         stamina.Value = Mathf.Min(maxStamina, stamina.Value + regen * dt);
     }
 
@@ -443,6 +468,7 @@ public class PlayerStatsManager : NetworkBehaviour
 
         isSleeping.Value = false;
         _safeSince = 0f;
+        ConsumeFeastFoodOnWakeServer();
     }
 
     private void TryAutoWakeServer()
@@ -513,9 +539,60 @@ public class PlayerStatsManager : NetworkBehaviour
         return false;
     }
 
+    private void UpdateWellFedServer()
+    {
+        if (!IsServer) return;
+        if (wellFedStacks.Value <= 0) return;
+
+        if (Time.time >= _wellFedEndTime)
+        {
+            wellFedStacks.Value = 0;
+            _wellFedEndTime = -999f;
+        }
+    }
+
+    private float GetWellFedBonusPerSec()
+    {
+        if (!IsServer) return 0f;
+        if (wellFedStacks.Value <= 0) return 0f;
+
+        if (Time.time >= _wellFedEndTime)
+        {
+            wellFedStacks.Value = 0;
+            _wellFedEndTime = -999f;
+            return 0f;
+        }
+
+        return wellFedStacks.Value * wellFedRegenPerStack;
+    }
+
+    private void ConsumeFeastFoodOnWakeServer()
+    {
+        if (!IsServer) return;
+
+        var ring = GetComponent<FeastRing>();
+        if (ring == null) return;
+
+        int totalValue;
+        int consumed = ring.ConsumeForWakeServer(maxFeastConsumePiles, out totalValue);
+        if (consumed <= 0) return;
+
+        stamina.Value = Mathf.Min(maxStamina, stamina.Value + totalValue);
+
+        int nextStacks = Mathf.Min(wellFedMaxStacks, wellFedStacks.Value + consumed);
+        wellFedStacks.Value = nextStacks;
+        _wellFedEndTime = Time.time + wellFedDurationSeconds;
+    }
+
     private void UpdateStaminaUI()
     {
-        if (GameManager.Instance == null || GameManager.Instance.staminaBar == null)
+        if (GameManager.Instance == null)
+            return;
+
+        if (GameManager.Instance.sleepingIndicator != null)
+            GameManager.Instance.sleepingIndicator.SetActive(isSleeping.Value);
+
+        if (GameManager.Instance.staminaBar == null)
             return;
 
         var bar = GameManager.Instance.staminaBar;
@@ -527,6 +604,7 @@ public class PlayerStatsManager : NetworkBehaviour
             string state = isSleeping.Value ? "SLEEPING" : "STAMINA";
             staminaText.text = $"{state}: {Mathf.CeilToInt(stamina.Value)}";
         }
+
     }
 
     #endregion
@@ -561,6 +639,12 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsOwner) return;
         OnStaminaChanged?.Invoke(stamina.Value, maxStamina, newValue);
+        UpdateStaminaUI();
+    }
+
+    private void OnWellFedStacksChanged(int oldValue, int newValue)
+    {
+        if (!IsOwner) return;
         UpdateStaminaUI();
     }
 
@@ -636,9 +720,11 @@ public class PlayerStatsManager : NetworkBehaviour
         isAlive.Value = true;
         stamina.Value = maxStamina;
         isSleeping.Value = false;
+        wellFedStacks.Value = 0;
         _lastDamageTime = -999f;
         _safeSince = 0f;
         _forcedWakeUsed = false;
+        _wellFedEndTime = -999f;
 
         // also update owner UI immediately
         UpdateHealthUIClientRpc(health.Value);

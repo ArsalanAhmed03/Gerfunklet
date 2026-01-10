@@ -185,6 +185,10 @@ public class CardHand : NetworkBehaviour
         var minion = instance.GetComponent<MinionAI>();
         if (minion == null) return;
 
+        var ownerTag = instance.GetComponent<MinionOwner>();
+        if (ownerTag != null)
+            ownerTag.SetOwnerServer(OwnerClientId);
+
         var enemyCitadel = FindEnemyCitadel(OwnerClientId);
         if (enemyCitadel != null && !enemyCitadel.destroyed.Value)
         {

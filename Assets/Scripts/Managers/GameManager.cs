@@ -9,6 +9,7 @@ public class GameManager : MonoBehaviour
     [Header("UI")]
     public Slider healthBar;
     public Slider staminaBar;
+    public GameObject sleepingIndicator;
 
     [Header("Objective UI")]
     public Slider dangerCaptureBar;      // enemy capturing my zone
