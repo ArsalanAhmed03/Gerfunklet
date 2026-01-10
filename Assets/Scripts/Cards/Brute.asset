@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Brute
   m_EditorClassIdentifier: 
   id: 2
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 98b5677999830ef42becc8dfc243b01d, type: 3}
   atpCost: 2
+  spawnPrefab: {fileID: 8529901964881285209, guid: ff3b005f6d82db649adaadb2506f6d65, type: 3}
+  spawnWarmupSeconds: 0
   description: 

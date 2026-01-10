@@ -15,6 +15,7 @@ public class MatchManager : NetworkBehaviour
     public float LoadoutSelectSeconds => loadoutSelectSeconds;
     public bool IsTeamAssignmentReady => PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue;
     public bool EnableObjectiveZones => enableObjectiveZones;
+    public bool EnableAbilityLoadoutUI => enableAbilityLoadoutUI;
 
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
@@ -40,6 +41,14 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
     [SerializeField] private float overtimeSeconds = 60f;
     [SerializeField] private bool enableObjectiveZones = false;
+    [SerializeField] private bool enableAbilityLoadoutUI = false;
+    [SerializeField] private AbilityId[] defaultAbilityLoadout = new AbilityId[4]
+    {
+        AbilityId.Stomp,
+        AbilityId.Parry,
+        AbilityId.Rally,
+        AbilityId.Throw
+    };
 
     [Header("Match Timer")]
     [SerializeField] private float matchSeconds = 180f;
@@ -210,6 +219,10 @@ public class MatchManager : NetworkBehaviour
             AssignTeamsIfNeededServer();
             if (IsReadyPlayerCountMet())
                 EnterLoadoutSelectServer();
+        }
+        else if (phase == MatchPhase.LoadoutSelect)
+        {
+            TryAutoLockLoadoutsServer();
         }
 
         // Match timer only ticks while live
@@ -532,6 +545,40 @@ public class MatchManager : NetworkBehaviour
 
         if (winnerClientId == a) PlayerAWins.Value++;
         else if (winnerClientId == b) PlayerBWins.Value++;
+    }
+
+    private void TryAutoLockLoadoutsServer()
+    {
+        if (!IsServer) return;
+        if (LoadoutsLocked.Value) return;
+        if (LoadoutEndsAtServerTime.Value <= 0d) return;
+
+        double now = NetworkManager.Singleton != null
+            ? NetworkManager.Singleton.ServerTime.Time
+            : Time.timeAsDouble;
+
+        if (now < LoadoutEndsAtServerTime.Value) return;
+
+        LoadoutsLocked.Value = true;
+
+        _countdownStarted = false;
+        if (_countdownRoutine != null) StopCoroutine(_countdownRoutine);
+        _countdownRoutine = StartCoroutine(CountdownRoutine());
+    }
+
+    public void ApplyDefaultLoadoutServer(GameObject playerGO)
+    {
+        if (!IsServer) return;
+        if (playerGO == null) return;
+
+        var runner = playerGO.GetComponent<AbilityRunner>();
+        if (runner == null) return;
+
+        if (defaultAbilityLoadout == null || defaultAbilityLoadout.Length != 4)
+            return;
+
+        runner.ApplyLoadoutServer(defaultAbilityLoadout);
+        runner.ResetForNewRoundServerRpc();
     }
 
     public void EndMatchImmediateServer(ulong winnerClientId)

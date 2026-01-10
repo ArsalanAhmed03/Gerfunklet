@@ -11,6 +11,9 @@ public class PlayerMovement : NetworkBehaviour
     [Header("Input Action Asset")]
     public InputActionAsset playerInputActions; // Assign in Inspector
 
+    [Header("Debug")]
+    [SerializeField] private bool debugSpawnMinionOnAttack = false;
+
     private InputAction moveAction;
     private InputAction lookAction;
     private InputAction attackAction;
@@ -135,7 +138,7 @@ public class PlayerMovement : NetworkBehaviour
                     statsManager.modifyStamina(-10);
                 }
 
-                if (LocalSpawner.Instance != null)
+                if (debugSpawnMinionOnAttack && LocalSpawner.Instance != null)
                 {
                     Debug.Log("Requesting minion spawn from server...");
                     LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);

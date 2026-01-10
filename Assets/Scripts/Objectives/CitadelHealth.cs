@@ -6,6 +6,7 @@ public class CitadelHealth : NetworkBehaviour
     [Header("Citadel")]
     [SerializeField] private int maxHealth = 2000;
     [SerializeField] private int contactDamagePerSecond = 40;
+    [SerializeField] private bool contactDamageEnabled = false;
 
     public NetworkVariable<int> health = new NetworkVariable<int>(
         2000,
@@ -60,12 +61,17 @@ public class CitadelHealth : NetworkBehaviour
     {
         if (!IsServer) return;
         if (destroyed.Value) return;
-        if (contactDamagePerSecond <= 0) return;
+        if (!contactDamageEnabled || contactDamagePerSecond <= 0) return;
 
-        var no = other.GetComponentInParent<NetworkObject>();
-        if (no == null) return;
+        if (MatchManager.Instance != null)
+        {
+            var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
+            if (phase != MatchManager.MatchPhase.Playing && phase != MatchManager.MatchPhase.Overtime)
+                return;
+        }
 
-        if (no.OwnerClientId == ownerClientId.Value) return;
+        var minion = other.GetComponentInParent<MinionAI>();
+        if (minion == null) return;
 
         ApplyDamageServer(Mathf.CeilToInt(contactDamagePerSecond * Time.deltaTime));
     }

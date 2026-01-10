@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -58,35 +59,17 @@ public class CardHand : NetworkBehaviour
         if (!IsServer) return;
         if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
 
-        if (handIndex < 0 || handIndex >= Hand.Count) return;
+        var fallbackPosition = GetFallbackPlacementPositionServer();
+        TryPlayCardServer(handIndex, fallbackPosition);
+    }
 
-        var id = (CardId)Hand[handIndex];
-        if (id == CardId.None) return;
+    [ServerRpc]
+    public void PlayCardAtServerRpc(int handIndex, Vector3 worldPosition, ServerRpcParams rpcParams = default)
+    {
+        if (!IsServer) return;
+        if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
 
-        if (MatchManager.Instance != null)
-        {
-            var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
-            if (phase != MatchManager.MatchPhase.Playing && phase != MatchManager.MatchPhase.Overtime)
-                return;
-        }
-
-        float cost = 0f;
-        if (catalog != null)
-        {
-            var def = catalog.Get(id);
-            if (def != null) cost = def.atpCost;
-        }
-
-        var atp = GetComponent<AtpResource>();
-        if (atp != null && cost > 0f)
-        {
-            if (!atp.TrySpendServer(cost))
-                return;
-        }
-
-        Debug.Log($"[CardHand][SERVER] Play card {id} by {OwnerClientId} cost={cost}");
-
-        Hand[handIndex] = (int)DrawFromDeckServer();
+        TryPlayCardServer(handIndex, worldPosition);
     }
 
     [ServerRpc]
@@ -116,10 +99,119 @@ public class CardHand : NetworkBehaviour
 
         foreach (var idx in handIndices)
         {
+            var oldId = (CardId)Hand[idx];
             Hand[idx] = (int)DrawFromDeckServer();
+            ReturnCardToDeckBottomServer(oldId);
         }
 
         _mulliganRemaining -= handIndices.Length;
+    }
+
+    private void TryPlayCardServer(int handIndex, Vector3 worldPosition)
+    {
+        if (handIndex < 0 || handIndex >= Hand.Count) return;
+
+        var id = (CardId)Hand[handIndex];
+        if (id == CardId.None) return;
+
+        if (MatchManager.Instance != null)
+        {
+            var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
+            if (phase != MatchManager.MatchPhase.Playing && phase != MatchManager.MatchPhase.Overtime)
+                return;
+        }
+
+        CardDefinition def = null;
+        float cost = 0f;
+        if (catalog != null)
+        {
+            def = catalog.Get(id);
+            if (def != null) cost = def.atpCost;
+        }
+
+        if (def == null || def.spawnPrefab == null)
+        {
+            Debug.LogWarning($"[CardHand][SERVER] Card {id} has no spawn prefab assigned.");
+            return;
+        }
+
+        var rules = GetComponent<DeploymentRules>();
+        if (rules == null)
+        {
+            Debug.LogWarning("[CardHand][SERVER] DeploymentRules missing on player; cannot validate placement.");
+            return;
+        }
+
+        if (!rules.IsPlacementValid(worldPosition, out var reason))
+        {
+            if (!string.IsNullOrEmpty(reason))
+                Debug.Log($"[CardHand][SERVER] Placement rejected: {reason}");
+            return;
+        }
+
+        var atp = GetComponent<AtpResource>();
+        if (atp != null && cost > 0f)
+        {
+            if (!atp.TrySpendServer(cost))
+                return;
+        }
+
+        Debug.Log($"[CardHand][SERVER] Play card {id} by {OwnerClientId} cost={cost} at {worldPosition}");
+
+        StartCoroutine(SpawnCardAfterWarmupServer(def, worldPosition));
+
+        Hand[handIndex] = (int)DrawFromDeckServer();
+        ReturnCardToDeckBottomServer(id);
+    }
+
+    private IEnumerator SpawnCardAfterWarmupServer(CardDefinition def, Vector3 position)
+    {
+        float warmup = Mathf.Max(0f, def.spawnWarmupSeconds);
+        if (warmup > 0f)
+            yield return new WaitForSeconds(warmup);
+
+        var instance = Instantiate(def.spawnPrefab, position, Quaternion.identity);
+        var netObj = instance.GetComponent<NetworkObject>();
+        if (netObj != null)
+            netObj.Spawn();
+        else
+            Debug.LogWarning($"[CardHand][SERVER] Spawn prefab {def.spawnPrefab.name} has no NetworkObject; it will not replicate.");
+
+        AssignMinionTargetIfPresent(instance);
+    }
+
+    private void AssignMinionTargetIfPresent(GameObject instance)
+    {
+        var minion = instance.GetComponent<MinionAI>();
+        if (minion == null) return;
+
+        var enemyCitadel = FindEnemyCitadel(OwnerClientId);
+        if (enemyCitadel != null && !enemyCitadel.destroyed.Value)
+        {
+            minion.target = enemyCitadel.transform;
+            return;
+        }
+
+        if (NetworkManager.Singleton == null) return;
+        foreach (var kvp in NetworkManager.Singleton.ConnectedClients)
+        {
+            if (kvp.Key == OwnerClientId) continue;
+            minion.target = kvp.Value.PlayerObject != null ? kvp.Value.PlayerObject.transform : null;
+            if (minion.target != null) break;
+        }
+    }
+
+    private CitadelHealth FindEnemyCitadel(ulong ownerClientId)
+    {
+        var citadels = FindObjectsOfType<CitadelHealth>(true);
+        foreach (var c in citadels)
+        {
+            if (c == null) continue;
+            if (c.ownerClientId.Value == ulong.MaxValue) continue;
+            if (c.ownerClientId.Value == ownerClientId) continue;
+            return c;
+        }
+        return null;
     }
 
     private void BuildDeckServer()
@@ -175,6 +267,21 @@ public class CardHand : NetworkBehaviour
         var card = (CardId)Deck[0];
         Deck.RemoveAt(0);
         return card;
+    }
+
+    private void ReturnCardToDeckBottomServer(CardId id)
+    {
+        if (id == CardId.None) return;
+        Deck.Add((int)id);
+    }
+
+    private Vector3 GetFallbackPlacementPositionServer()
+    {
+        var rules = GetComponent<DeploymentRules>();
+        if (rules != null)
+            return rules.GetAnchorPosition(out _);
+
+        return transform.position;
     }
 
     private void Shuffle(List<CardId> list)

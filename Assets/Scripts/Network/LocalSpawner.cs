@@ -117,6 +117,9 @@ public class LocalSpawner : NetworkBehaviour
 
             if (debugMode)
                 Debug.Log($"Player spawned for client {clientId} at {spawnPosition}");
+
+            if (MatchManager.Instance != null)
+                MatchManager.Instance.ApplyDefaultLoadoutServer(playerInstance);
         }
         else
         {

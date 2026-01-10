@@ -18,8 +18,13 @@ public class CardHandUI : MonoBehaviour
     [Header("Catalog (optional override)")]
     [SerializeField] private CardCatalog catalogOverride;
 
+    [Header("Placement (optional override)")]
+    [SerializeField] private CardPlacementController placementControllerOverride;
+
     private CardHand _hand;
     private CardCatalog _catalog;
+    private CardPlacementController _placement;
+    private MatchManager _match;
     private ulong _boundObjectId = ulong.MaxValue;
     private bool _bound;
     private bool _mulliganMode;
@@ -46,6 +51,7 @@ public class CardHandUI : MonoBehaviour
     private void OnDisable()
     {
         Unbind();
+        UnbindMatch();
     }
 
     private void Update()
@@ -71,6 +77,7 @@ public class CardHandUI : MonoBehaviour
 
         _hand = playerObj.GetComponent<CardHand>();
         _catalog = catalogOverride != null ? catalogOverride : _hand != null ? _hand.Catalog : null;
+        _placement = placementControllerOverride != null ? placementControllerOverride : playerObj.GetComponent<CardPlacementController>();
         _boundObjectId = objectId;
 
         if (_hand == null) return;
@@ -79,6 +86,8 @@ public class CardHandUI : MonoBehaviour
         _bound = true;
         RefreshHand();
         UpdateMulliganButton();
+        BindMatch();
+        UpdateMulliganVisibility();
     }
 
     private void Unbind()
@@ -88,9 +97,31 @@ public class CardHandUI : MonoBehaviour
 
         _hand = null;
         _catalog = null;
+        _placement = null;
         _bound = false;
         _boundObjectId = ulong.MaxValue;
         SetMulliganMode(false);
+    }
+
+    private void BindMatch()
+    {
+        if (_match != null) return;
+        if (MatchManager.Instance == null) return;
+
+        _match = MatchManager.Instance;
+        _match.OnPhaseChanged += HandlePhaseChanged;
+    }
+
+    private void UnbindMatch()
+    {
+        if (_match == null) return;
+        _match.OnPhaseChanged -= HandlePhaseChanged;
+        _match = null;
+    }
+
+    private void HandlePhaseChanged(MatchManager.MatchPhase phase)
+    {
+        UpdateMulliganVisibility();
     }
 
     private void RefreshHand()
@@ -136,6 +167,17 @@ public class CardHandUI : MonoBehaviour
 
         if (!IsPhasePlayable())
             return;
+
+        var id = _hand.GetHandCardId(index);
+        if (id == CardId.None)
+            return;
+
+        var def = _catalog != null ? _catalog.Get(id) : null;
+        if (_placement != null)
+        {
+            _placement.BeginPlacement(_hand, index, def);
+            return;
+        }
 
         _hand.PlayCardServerRpc(index);
     }
@@ -184,6 +226,16 @@ public class CardHandUI : MonoBehaviour
     {
         if (mulliganButtonText != null)
             mulliganButtonText.text = _mulliganMode ? "Confirm Mulligan" : "Mulligan";
+    }
+
+    private void UpdateMulliganVisibility()
+    {
+        bool show = IsPhaseLoadoutSelect();
+        if (!show)
+            SetMulliganMode(false);
+
+        if (mulliganButton != null)
+            mulliganButton.gameObject.SetActive(show);
     }
 
     private bool IsPhaseLoadoutSelect()

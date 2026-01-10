@@ -52,7 +52,8 @@ public class LoadoutSelectUI : MonoBehaviour
         if (MatchManager.Instance == null) return;
 
         var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
-        bool show = phase == MatchManager.MatchPhase.LoadoutSelect;
+        bool show = phase == MatchManager.MatchPhase.LoadoutSelect &&
+                    MatchManager.Instance.EnableAbilityLoadoutUI;
 
         if (root != null) root.SetActive(show);
 
