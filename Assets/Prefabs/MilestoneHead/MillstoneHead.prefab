@@ -180,6 +180,9 @@ MonoBehaviour:
   dropOffsetForward: 0.4
   throwForce: 8
   throwUpForce: 2
+  droppedLinearDrag: 2
+  droppedAngularDrag: 6
+  throwStopAfterSeconds: 1.5
   pickupCollider: {fileID: 3290298024225401172}
   OwnerClientId:
     m_InternalValue: 18446744073709551615

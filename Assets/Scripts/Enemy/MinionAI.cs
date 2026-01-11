@@ -10,6 +10,7 @@ public class MinionAI : NetworkBehaviour
     [Header("Combat")]
     public int damage = 10;
     public float attackRange = 1.5f;
+    [SerializeField] private bool destroyOnAttack = true;
 
     private void Start()
     {
@@ -27,6 +28,8 @@ public class MinionAI : NetworkBehaviour
         //         }
         //     }
         // }
+
+        ApplyStatsOverrides();
 
         if (!IsOwner) return;
 
@@ -66,6 +69,18 @@ public class MinionAI : NetworkBehaviour
         {
             target.GetComponent<PlayerStatsManager>()?.TakeDamageServerRpc(damage);
         }
-        Destroy(gameObject);
+        if (destroyOnAttack)
+            Destroy(gameObject);
+    }
+
+    private void ApplyStatsOverrides()
+    {
+        var stats = GetComponent<MinionStats>();
+        if (stats == null) return;
+
+        damage = stats.Damage;
+        moveSpeed = stats.MoveSpeed;
+        attackRange = stats.AttackRange;
+        destroyOnAttack = stats.DestroyOnAttack;
     }
 }

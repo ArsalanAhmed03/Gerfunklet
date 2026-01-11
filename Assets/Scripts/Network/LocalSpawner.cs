@@ -141,6 +141,36 @@ public class LocalSpawner : NetworkBehaviour
         return null;
     }
 
+    private Transform FindEnemyPlayer(ulong ownerClientId)
+    {
+        foreach (var kvp in spawnedPlayers)
+        {
+            if (kvp.Key == ownerClientId) continue;
+            return kvp.Value != null ? kvp.Value.transform : null;
+        }
+
+        return null;
+    }
+
+    private Transform SelectMinionTarget(ulong ownerClientId, MinionStats stats)
+    {
+        bool structuresFirst = stats != null && stats.TargetingMode == MinionStats.Targeting.StructuresFirst;
+
+        if (structuresFirst)
+        {
+            var citadel = FindEnemyCitadel(ownerClientId);
+            if (citadel != null && !citadel.destroyed.Value)
+                return citadel.transform;
+        }
+
+        var player = FindEnemyPlayer(ownerClientId);
+        if (player != null)
+            return player;
+
+        var fallbackCitadel = FindEnemyCitadel(ownerClientId);
+        return fallbackCitadel != null ? fallbackCitadel.transform : null;
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void SpawnMinionForClientServerRpc(ulong clientId)
     {
@@ -185,20 +215,8 @@ public class LocalSpawner : NetworkBehaviour
             var minionAI = minionInstance.GetComponent<MinionAI>();
             if (minionAI != null)
             {
-                var targetCitadel = FindEnemyCitadel(clientId);
-                if (targetCitadel != null && !targetCitadel.destroyed.Value)
-                {
-                    minionAI.target = targetCitadel.transform;
-                }
-                else
-                {
-                    foreach (var kvp in spawnedPlayers)
-                    {
-                        if (kvp.Key == clientId) continue;
-                        minionAI.target = kvp.Value?.transform;
-                        break;
-                    }
-                }
+                var stats = minionInstance.GetComponent<MinionStats>();
+                minionAI.target = SelectMinionTarget(clientId, stats);
             }
 
             var ownerTag = minionInstance.GetComponent<MinionOwner>();

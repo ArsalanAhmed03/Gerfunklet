@@ -27,6 +27,11 @@ public class CitadelHealth : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    [Header("Tier Visuals (optional)")]
+    [SerializeField] private GameObject tier75;
+    [SerializeField] private GameObject tier50;
+    [SerializeField] private GameObject tier25;
+
     private bool _ownerAssigned;
 
     public int MaxHealth => maxHealth;
@@ -38,6 +43,19 @@ public class CitadelHealth : NetworkBehaviour
         health.Value = maxHealth;
         destroyed.Value = false;
         TryAutoAssignOwner();
+    }
+
+    private void Start()
+    {
+        health.OnValueChanged += HandleHealthChanged;
+        destroyed.OnValueChanged += HandleDestroyedChanged;
+        UpdateTierVisuals();
+    }
+
+    private void OnDestroy()
+    {
+        health.OnValueChanged -= HandleHealthChanged;
+        destroyed.OnValueChanged -= HandleDestroyedChanged;
     }
 
     private void Update()
@@ -52,7 +70,14 @@ public class CitadelHealth : NetworkBehaviour
         if (destroyed.Value) return;
         if (damage <= 0) return;
 
-        health.Value = Mathf.Max(0, health.Value - damage);
+        int applied = damage;
+        if (MatchManager.Instance != null &&
+            MatchManager.Instance.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
+        {
+            applied = Mathf.CeilToInt(applied * 1.1f);
+        }
+
+        health.Value = Mathf.Max(0, health.Value - applied);
         if (health.Value <= 0)
             destroyed.Value = true;
     }
@@ -84,5 +109,41 @@ public class CitadelHealth : NetworkBehaviour
 
         ownerClientId.Value = transform.position.x <= 0f ? a : b;
         _ownerAssigned = true;
+    }
+
+    private void HandleHealthChanged(int oldValue, int newValue)
+    {
+        UpdateTierVisuals();
+    }
+
+    private void HandleDestroyedChanged(bool oldValue, bool newValue)
+    {
+        UpdateTierVisuals();
+    }
+
+    private void UpdateTierVisuals()
+    {
+        if (destroyed.Value)
+        {
+            SetTierActive(tier75, false);
+            SetTierActive(tier50, false);
+            SetTierActive(tier25, false);
+            return;
+        }
+
+        float ratio = maxHealth > 0 ? (float)health.Value / maxHealth : 0f;
+        bool show75 = ratio <= 0.75f && ratio > 0.5f;
+        bool show50 = ratio <= 0.5f && ratio > 0.25f;
+        bool show25 = ratio <= 0.25f;
+
+        SetTierActive(tier75, show75);
+        SetTierActive(tier50, show50);
+        SetTierActive(tier25, show25);
+    }
+
+    private void SetTierActive(GameObject obj, bool active)
+    {
+        if (obj == null) return;
+        obj.SetActive(active);
     }
 }

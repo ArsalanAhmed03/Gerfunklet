@@ -13,9 +13,6 @@ public class CardPlacementController : MonoBehaviour
     [SerializeField] private InputActionReference placeAction;
     [SerializeField] private InputActionReference cancelAction;
 
-    [Header("Visual (optional)")]
-    [SerializeField] private Transform placementIndicator;
-
     private CardHand _hand;
     private DeploymentRules _rules;
     private int _handIndex = -1;
@@ -49,11 +46,7 @@ public class CardPlacementController : MonoBehaviour
         if (worldCamera == null)
             worldCamera = Camera.main;
 
-        if (TryGetPlacementPoint(out var point))
-        {
-            if (placementIndicator != null)
-                placementIndicator.position = point;
-        }
+        bool hasPoint = TryGetPlacementPoint(out var point);
 
         if (IsCancelPressed())
         {
@@ -67,7 +60,7 @@ public class CardPlacementController : MonoBehaviour
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
             return;
 
-        if (!TryGetPlacementPoint(out point))
+        if (!hasPoint)
             return;
 
         if (_rules != null && !_rules.IsPlacementValid(point, out var reason))
@@ -90,9 +83,6 @@ public class CardPlacementController : MonoBehaviour
         _ = def;
         _rules = hand.GetComponent<DeploymentRules>();
         _active = true;
-
-        if (placementIndicator != null)
-            placementIndicator.gameObject.SetActive(true);
     }
 
     public void CancelPlacement()
@@ -106,9 +96,6 @@ public class CardPlacementController : MonoBehaviour
         _hand = null;
         _rules = null;
         _handIndex = -1;
-
-        if (placementIndicator != null)
-            placementIndicator.gameObject.SetActive(false);
     }
 
     private bool TryGetPlacementPoint(out Vector3 point)
@@ -160,4 +147,5 @@ public class CardPlacementController : MonoBehaviour
 
         return false;
     }
+
 }

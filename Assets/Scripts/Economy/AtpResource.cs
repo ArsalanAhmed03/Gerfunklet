@@ -49,7 +49,8 @@ public class AtpResource : NetworkBehaviour
 
         if (Atp.Value < atpCap)
         {
-            Atp.Value = Mathf.Min(atpCap, Atp.Value + atpRegenPerSec * Time.deltaTime);
+            float regen = atpRegenPerSec * GetOvertimeRegenMultiplier();
+            Atp.Value = Mathf.Min(atpCap, Atp.Value + regen * Time.deltaTime);
         }
     }
 
@@ -113,5 +114,11 @@ public class AtpResource : NetworkBehaviour
         if (NetworkManager.Singleton != null)
             return NetworkManager.Singleton.ServerTime.Time;
         return Time.timeAsDouble;
+    }
+
+    private float GetOvertimeRegenMultiplier()
+    {
+        if (MatchManager.Instance == null) return 1f;
+        return MatchManager.Instance.Phase.Value == (int)MatchManager.MatchPhase.Overtime ? 1.15f : 1f;
     }
 }

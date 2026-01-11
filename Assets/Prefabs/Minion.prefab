@@ -5576,6 +5576,7 @@ GameObject:
   - component: {fileID: 3193639981421571955}
   - component: {fileID: 2594333630485436091}
   - component: {fileID: 2411435514029309853}
+  - component: {fileID: 5088850473464845819}
   m_Layer: 0
   m_Name: Minion
   m_TagString: Minion
@@ -5754,6 +5755,7 @@ MonoBehaviour:
   target: {fileID: 0}
   damage: 2
   attackRange: 0.1
+  destroyOnAttack: 1
 --- !u!114 &5255228108239816014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5817,6 +5819,23 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &5088850473464845819
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8529901964881285209}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc8b580a32b522a438a64896088d8b3c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  damage: 10
+  moveSpeed: 3
+  attackRange: 1.5
+  destroyOnAttack: 1
+  targeting: 1
 --- !u!1 &8549839956658346512
 GameObject:
   m_ObjectHideFlags: 0

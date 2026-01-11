@@ -1979,7 +1979,6 @@ MonoBehaviour:
   maxRayDistance: 200
   placeAction: {fileID: 0}
   cancelAction: {fileID: 0}
-  placementIndicator: {fileID: 0}
 --- !u!114 &842967759317444558
 MonoBehaviour:
   m_ObjectHideFlags: 0

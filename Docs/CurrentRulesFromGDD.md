@@ -7,12 +7,16 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ### Match Flow
 - Phases: WaitingForPlayers -> Ready/Mulligan (LoadoutSelect) -> Countdown -> Playing -> Overtime -> RoundEnded -> MatchEnded.
 - Match timer: counts down during Playing; when it reaches 0, phase switches to Overtime.
-- Rounds: best-of-3 (first to 2 round wins).
+- Single-match flow (rounds disabled by default).
+- RoundEnded is only used if `MatchManager.enableRounds` is turned on.
 
 ### Win Conditions (Current Build)
 - A match ends immediately when a Millstone is planted at the enemy altar (primary path).
 - A match can also end by destroying the enemy Citadel and completing a Throne channel.
-- Rounds still exist (best-of-3); overtime ending can force a round draw.
+- Overtime ending can still force a draw if no win condition is completed.
+
+### Citadel (Partial)
+- Citadel health uses GDD max HP (2000) and can drive optional tier visuals at 75/50/25% HP.
 
 ### Loadout System
 - Each player selects 4 unique abilities during LoadoutSelect.
@@ -29,6 +33,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ### Spawning
 - Players are spawned as player objects by the server at scene load.
 - Minions can be spawned by a player action (server authoritative).
+- Minion behavior can be customized per prefab via `MinionStats` (damage, speed, attack range, targeting).
 
 ### ATP (Economy – Partial)
 - ATP is server-authoritative with defaults from the GDD: cap 10, regen 0.9/s, start 4, global spend GCD 0.5s.
@@ -51,9 +56,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Implemented But Diverging From GDD
 - GDD Rally includes attack speed and ally/minion buffs; current implementation only applies move speed and only to caster-owned characters.
 - Objective zones still exist in the scene flow, but are disabled by default in `MatchManager`.
-- Best-of-3 rounds are still in use; the GDD does not define rounds yet.
 - GDD respawn delay: 8s; current build resets on round reset without a per-player respawn timer.
-- GDD overtime is a fixed 1:00 with bonuses; current build caps overtime at 60s but does not apply bonuses.
+- GDD overtime is a fixed 1:00; current build applies ATP regen +15%, warmup -50%, and citadel damage +10%.
 - Millstone throw/drop is implemented, but reclaim/contest rules are simplified (any player can pick up a dropped head after a 1s hold).
 - Throne capture uses a simple channel gated by Citadel destroyed; Citadel damage is currently just proximity damage.
 - ObjectiveZone wins are disabled by default to match GDD win paths (can be re-enabled in MatchManager).
@@ -80,6 +84,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add input actions named `Rest` and `Wake` to the Player action map if you want manual sleep/force-wake controls.
 - Add `FeastRing` to the player prefab with a trigger collider (1.5 radius); it auto-assigns owner from the player `NetworkObject`.
 - Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
+- Add `MinionStats` to minion prefabs to set per-unit damage/speed/attack range and targeting (e.g., Brute = StructuresFirst).
 - Add `FoodPile` prefabs (NetworkObject + trigger collider) to the scene to test delivery.
 - Add `CitadelHealth` to each Citadel object and assign each Throne’s `requiredCitadel`.
 - Add `ThroneCapture` to each Throne with a trigger collider.

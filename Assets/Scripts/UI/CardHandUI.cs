@@ -29,6 +29,7 @@ public class CardHandUI : MonoBehaviour
     private bool _bound;
     private bool _mulliganMode;
     private readonly bool[] _selected = new bool[4];
+    private readonly List<int> _selectionOrder = new List<int>(4);
 
     private void Awake()
     {
@@ -83,6 +84,7 @@ public class CardHandUI : MonoBehaviour
         if (_hand == null) return;
 
         _hand.OnHandChanged += RefreshHand;
+        _hand.OnMulliganRemainingChanged += HandleMulliganRemainingChanged;
         _bound = true;
         RefreshHand();
         UpdateMulliganButton();
@@ -93,7 +95,10 @@ public class CardHandUI : MonoBehaviour
     private void Unbind()
     {
         if (_hand != null)
+        {
             _hand.OnHandChanged -= RefreshHand;
+            _hand.OnMulliganRemainingChanged -= HandleMulliganRemainingChanged;
+        }
 
         _hand = null;
         _catalog = null;
@@ -160,7 +165,25 @@ public class CardHandUI : MonoBehaviour
 
         if (_mulliganMode)
         {
-            _selected[index] = !_selected[index];
+            int remaining = GetMulliganRemaining();
+            if (remaining <= 0)
+                return;
+
+            if (_selected[index])
+            {
+                SetSelected(index, false);
+            }
+            else
+            {
+                int selectedCount = _selectionOrder.Count;
+                if (selectedCount >= remaining && selectedCount > 0)
+                {
+                    SetSelected(_selectionOrder[0], false);
+                }
+
+                SetSelected(index, true);
+            }
+
             UpdateSelectionVisuals();
             return;
         }
@@ -189,6 +212,8 @@ public class CardHandUI : MonoBehaviour
 
         if (!_mulliganMode)
         {
+            if (GetMulliganRemaining() <= 0)
+                return;
             SetMulliganMode(true);
             return;
         }
@@ -208,6 +233,7 @@ public class CardHandUI : MonoBehaviour
         _mulliganMode = enabled;
         for (int i = 0; i < _selected.Length; i++)
             _selected[i] = false;
+        _selectionOrder.Clear();
         UpdateSelectionVisuals();
         UpdateMulliganButton();
     }
@@ -224,8 +250,15 @@ public class CardHandUI : MonoBehaviour
 
     private void UpdateMulliganButton()
     {
+        int remaining = GetMulliganRemaining();
+        if (_mulliganMode && remaining <= 0)
+            SetMulliganMode(false);
+
         if (mulliganButtonText != null)
             mulliganButtonText.text = _mulliganMode ? "Confirm Mulligan" : "Mulligan";
+
+        if (mulliganButton != null)
+            mulliganButton.interactable = remaining > 0;
     }
 
     private void UpdateMulliganVisibility()
@@ -236,6 +269,46 @@ public class CardHandUI : MonoBehaviour
 
         if (mulliganButton != null)
             mulliganButton.gameObject.SetActive(show);
+    }
+
+    private int GetMulliganRemaining()
+    {
+        return _hand != null ? _hand.MulliganRemaining.Value : 0;
+    }
+
+    private void SetSelected(int index, bool selected)
+    {
+        if (index < 0 || index >= _selected.Length) return;
+
+        _selected[index] = selected;
+
+        if (selected)
+        {
+            _selectionOrder.Remove(index);
+            _selectionOrder.Add(index);
+        }
+        else
+        {
+            _selectionOrder.Remove(index);
+        }
+    }
+
+    private void HandleMulliganRemainingChanged(int remaining)
+    {
+        ClampSelectionToRemaining(remaining);
+        UpdateMulliganButton();
+    }
+
+    private void ClampSelectionToRemaining(int remaining)
+    {
+        if (remaining < 0) remaining = 0;
+
+        while (_selectionOrder.Count > remaining)
+        {
+            SetSelected(_selectionOrder[0], false);
+        }
+
+        UpdateSelectionVisuals();
     }
 
     private bool IsPhaseLoadoutSelect()

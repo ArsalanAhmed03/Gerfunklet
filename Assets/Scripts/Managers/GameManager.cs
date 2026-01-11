@@ -11,20 +11,14 @@ public class GameManager : MonoBehaviour
     public Slider staminaBar;
     public GameObject sleepingIndicator;
 
-    [Header("Objective UI")]
-    public Slider dangerCaptureBar;      // enemy capturing my zone
-    public Slider myCaptureBar;          // me capturing enemy zone
-    public TextMeshProUGUI captureStateText;
+    [Header("Gameplay UI Roots")]
+    [SerializeField] private GameObject controlsRoot;
 
     [Header("Citadel/Throne UI")]
     public Slider enemyCitadelBar;
     public TextMeshProUGUI enemyCitadelText;
     public Slider throneCaptureBar;
     public TextMeshProUGUI throneCaptureText;
-
-    [Header("Objective Zones")]
-    public ObjectiveZone zoneA;
-    public ObjectiveZone zoneB;
 
     [Header("Citadel/Throne Objects")]
     public CitadelHealth citadelA;
@@ -160,16 +154,55 @@ public class GameManager : MonoBehaviour
                 _ => phase.ToString()
             };
         }
+
+        UpdateGameplayUiForPhase(phase);
+    }
+
+    private void UpdateGameplayUiForPhase(MatchManager.MatchPhase phase)
+    {
+        bool gameplay = phase == MatchManager.MatchPhase.Playing || phase == MatchManager.MatchPhase.Overtime;
+
+        SetActive(controlsRoot, gameplay);
+        SetActive(healthBar != null ? healthBar.gameObject : null, gameplay);
+        SetActive(staminaBar != null ? staminaBar.gameObject : null, gameplay);
+        SetActive(sleepingIndicator, gameplay);
+
+        SetActive(enemyCitadelBar != null ? enemyCitadelBar.gameObject : null, gameplay);
+        SetActive(enemyCitadelText != null ? enemyCitadelText.gameObject : null, gameplay);
+        SetActive(throneCaptureBar != null ? throneCaptureBar.gameObject : null, gameplay);
+        SetActive(throneCaptureText != null ? throneCaptureText.gameObject : null, gameplay);
+    }
+
+    private void SetActive(GameObject obj, bool active)
+    {
+        if (obj == null) return;
+        obj.SetActive(active);
     }
 
     private void HandleRoundChanged(int round)
     {
+        if (_match != null && !_match.EnableRounds)
+        {
+            SetActive(roundText != null ? roundText.gameObject : null, false);
+            SetActive(scoreText != null ? scoreText.gameObject : null, false);
+            SetActive(roundResultText != null ? roundResultText.gameObject : null, false);
+            return;
+        }
+
         if (roundText != null)
             roundText.text = $"Round {round}";
     }
 
     private void HandleScoreChanged(int playerAWins, int playerBWins)
     {
+        if (_match != null && !_match.EnableRounds)
+        {
+            SetActive(roundText != null ? roundText.gameObject : null, false);
+            SetActive(scoreText != null ? scoreText.gameObject : null, false);
+            SetActive(roundResultText != null ? roundResultText.gameObject : null, false);
+            return;
+        }
+
         if (scoreText != null)
         {
             // Score uses PlayerAWins/PlayerBWins based on join order (clients[0] vs clients[1] on server).

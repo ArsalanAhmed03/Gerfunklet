@@ -16,6 +16,7 @@ public class MatchManager : NetworkBehaviour
     public bool IsTeamAssignmentReady => PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue;
     public bool EnableObjectiveZones => enableObjectiveZones;
     public bool EnableAbilityLoadoutUI => enableAbilityLoadoutUI;
+    public bool EnableRounds => enableRounds;
 
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
@@ -36,7 +37,8 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float loadoutSelectSeconds = 20f;
 
     [Header("Round / Match Rules")]
-    [SerializeField] private int roundsToWin = 2;             // Best-of-3 => first to 2
+    [SerializeField] private bool enableRounds = false;
+    [SerializeField] private int roundsToWin = 1;
     [SerializeField] private float endScreenSeconds = 3f;      // delay after round/match result shown
     [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
     [SerializeField] private float overtimeSeconds = 60f;
@@ -498,6 +500,13 @@ public class MatchManager : NetworkBehaviour
     {
         if (!IsServer) return;
         if (_roundEnding) return;
+
+        if (!enableRounds)
+        {
+            EndMatchImmediateServer(winnerClientId);
+            return;
+        }
+
         _roundEnding = true;
 
         SetGameplayEnabledClientRpc(false);

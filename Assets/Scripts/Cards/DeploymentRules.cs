@@ -31,6 +31,12 @@ public class DeploymentRules : NetworkBehaviour
         return GetAnchorPositionInternal(out forwardUnlocked);
     }
 
+    public void GetDeploymentRing(out Vector3 center, out float radius, out bool forwardUnlocked)
+    {
+        center = GetAnchorPositionInternal(out forwardUnlocked);
+        radius = forwardUnlocked ? forwardDeployRadius : baseDeployRadius;
+    }
+
     public bool IsPlacementValid(Vector3 position, out string reason)
     {
         var anchor = GetAnchorPositionInternal(out bool forwardUnlocked);

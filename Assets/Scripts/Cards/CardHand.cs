@@ -25,15 +25,21 @@ public class CardHand : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
-    public event Action OnHandChanged;
+    public NetworkVariable<int> MulliganRemaining = new NetworkVariable<int>(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
-    private int _mulliganRemaining;
+    public event Action OnHandChanged;
+    public event Action<int> OnMulliganRemainingChanged;
 
     public CardCatalog Catalog => catalog;
 
     public override void OnNetworkSpawn()
     {
         Hand.OnListChanged += HandleHandChanged;
+        MulliganRemaining.OnValueChanged += HandleMulliganRemainingChanged;
 
         if (IsServer)
             ResetForNewMatchServer();
@@ -42,13 +48,14 @@ public class CardHand : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         Hand.OnListChanged -= HandleHandChanged;
+        MulliganRemaining.OnValueChanged -= HandleMulliganRemainingChanged;
     }
 
     public void ResetForNewMatchServer()
     {
         if (!IsServer) return;
 
-        _mulliganRemaining = maxMulliganSwaps;
+        MulliganRemaining.Value = maxMulliganSwaps;
         BuildDeckServer();
         DrawInitialHandServer();
     }
@@ -78,7 +85,7 @@ public class CardHand : NetworkBehaviour
         if (!IsServer) return;
         if (handIndices == null || handIndices.Length == 0) return;
         if (handIndices.Length > maxMulliganSwaps) return;
-        if (handIndices.Length > _mulliganRemaining) return;
+        if (handIndices.Length > MulliganRemaining.Value) return;
 
         if (rpcParams.Receive.SenderClientId != OwnerClientId)
             return;
@@ -104,7 +111,7 @@ public class CardHand : NetworkBehaviour
             ReturnCardToDeckBottomServer(oldId);
         }
 
-        _mulliganRemaining -= handIndices.Length;
+        MulliganRemaining.Value = Mathf.Max(0, MulliganRemaining.Value - handIndices.Length);
     }
 
     private void TryPlayCardServer(int handIndex, Vector3 worldPosition)
@@ -167,6 +174,12 @@ public class CardHand : NetworkBehaviour
     private IEnumerator SpawnCardAfterWarmupServer(CardDefinition def, Vector3 position)
     {
         float warmup = Mathf.Max(0f, def.spawnWarmupSeconds);
+        if (MatchManager.Instance != null &&
+            MatchManager.Instance.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
+        {
+            warmup *= 0.5f;
+        }
+
         if (warmup > 0f)
             yield return new WaitForSeconds(warmup);
 
@@ -189,20 +202,29 @@ public class CardHand : NetworkBehaviour
         if (ownerTag != null)
             ownerTag.SetOwnerServer(OwnerClientId);
 
-        var enemyCitadel = FindEnemyCitadel(OwnerClientId);
-        if (enemyCitadel != null && !enemyCitadel.destroyed.Value)
+        var stats = instance.GetComponent<MinionStats>();
+        bool structuresFirst = stats != null && stats.TargetingMode == MinionStats.Targeting.StructuresFirst;
+
+        if (structuresFirst)
         {
-            minion.target = enemyCitadel.transform;
+            var enemyCitadel = FindEnemyCitadel(OwnerClientId);
+            if (enemyCitadel != null && !enemyCitadel.destroyed.Value)
+            {
+                minion.target = enemyCitadel.transform;
+                return;
+            }
+        }
+
+        var enemyPlayer = FindEnemyPlayer(OwnerClientId);
+        if (enemyPlayer != null)
+        {
+            minion.target = enemyPlayer.transform;
             return;
         }
 
-        if (NetworkManager.Singleton == null) return;
-        foreach (var kvp in NetworkManager.Singleton.ConnectedClients)
-        {
-            if (kvp.Key == OwnerClientId) continue;
-            minion.target = kvp.Value.PlayerObject != null ? kvp.Value.PlayerObject.transform : null;
-            if (minion.target != null) break;
-        }
+        var fallbackCitadel = FindEnemyCitadel(OwnerClientId);
+        if (fallbackCitadel != null && !fallbackCitadel.destroyed.Value)
+            minion.target = fallbackCitadel.transform;
     }
 
     private CitadelHealth FindEnemyCitadel(ulong ownerClientId)
@@ -215,6 +237,18 @@ public class CardHand : NetworkBehaviour
             if (c.ownerClientId.Value == ownerClientId) continue;
             return c;
         }
+        return null;
+    }
+
+    private GameObject FindEnemyPlayer(ulong ownerClientId)
+    {
+        if (NetworkManager.Singleton == null) return null;
+        foreach (var kvp in NetworkManager.Singleton.ConnectedClients)
+        {
+            if (kvp.Key == ownerClientId) continue;
+            if (kvp.Value.PlayerObject != null) return kvp.Value.PlayerObject.gameObject;
+        }
+
         return null;
     }
 
@@ -300,6 +334,11 @@ public class CardHand : NetworkBehaviour
     private void HandleHandChanged(NetworkListEvent<int> changeEvent)
     {
         OnHandChanged?.Invoke();
+    }
+
+    private void HandleMulliganRemainingChanged(int oldValue, int newValue)
+    {
+        OnMulliganRemainingChanged?.Invoke(newValue);
     }
 
     public CardId GetHandCardId(int index)
