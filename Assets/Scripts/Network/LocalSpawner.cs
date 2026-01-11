@@ -318,6 +318,9 @@ public class LocalSpawner : NetworkBehaviour
             var abilities = playerGO.GetComponent<AbilityRunner>();
             if (abilities != null) abilities.ResetForNewRoundServerRpc();
 
+            var super = playerGO.GetComponent<SuperCharge>();
+            if (super != null) super.ResetForNewRoundServerRpc();
+
             var stun = playerGO.GetComponent<StunReceiver>();
             if (stun != null) stun.ResetForNewRoundServerRpc();
 

@@ -15,6 +15,11 @@ public class CardHandUI : MonoBehaviour
     [SerializeField] private Button mulliganButton;
     [SerializeField] private TextMeshProUGUI mulliganButtonText;
 
+    [Header("Super Choice (Mulligan)")]
+    [SerializeField] private GameObject superChoiceRoot;
+    [SerializeField] private Button[] superChoiceButtons = new Button[3];
+    [SerializeField] private GameObject[] superChoiceHighlights = new GameObject[3];
+
     [Header("Catalog (optional override)")]
     [SerializeField] private CardCatalog catalogOverride;
 
@@ -24,6 +29,7 @@ public class CardHandUI : MonoBehaviour
     private CardHand _hand;
     private CardCatalog _catalog;
     private CardPlacementController _placement;
+    private SuperController _super;
     private MatchManager _match;
     private ulong _boundObjectId = ulong.MaxValue;
     private bool _bound;
@@ -42,6 +48,13 @@ public class CardHandUI : MonoBehaviour
 
         if (mulliganButton != null)
             mulliganButton.onClick.AddListener(OnMulliganButtonClicked);
+
+        for (int i = 0; i < superChoiceButtons.Length; i++)
+        {
+            int idx = i;
+            if (superChoiceButtons[i] != null)
+                superChoiceButtons[i].onClick.AddListener(() => OnSuperChoiceClicked(idx));
+        }
     }
 
     private void OnEnable()
@@ -79,17 +92,21 @@ public class CardHandUI : MonoBehaviour
         _hand = playerObj.GetComponent<CardHand>();
         _catalog = catalogOverride != null ? catalogOverride : _hand != null ? _hand.Catalog : null;
         _placement = placementControllerOverride != null ? placementControllerOverride : playerObj.GetComponent<CardPlacementController>();
+        _super = playerObj.GetComponent<SuperController>();
         _boundObjectId = objectId;
 
         if (_hand == null) return;
 
         _hand.OnHandChanged += RefreshHand;
         _hand.OnMulliganRemainingChanged += HandleMulliganRemainingChanged;
+        if (_super != null)
+            _super.Choice.OnValueChanged += HandleSuperChoiceChanged;
         _bound = true;
         RefreshHand();
         UpdateMulliganButton();
         BindMatch();
         UpdateMulliganVisibility();
+        UpdateSuperChoiceVisuals();
     }
 
     private void Unbind()
@@ -99,10 +116,13 @@ public class CardHandUI : MonoBehaviour
             _hand.OnHandChanged -= RefreshHand;
             _hand.OnMulliganRemainingChanged -= HandleMulliganRemainingChanged;
         }
+        if (_super != null)
+            _super.Choice.OnValueChanged -= HandleSuperChoiceChanged;
 
         _hand = null;
         _catalog = null;
         _placement = null;
+        _super = null;
         _bound = false;
         _boundObjectId = ulong.MaxValue;
         SetMulliganMode(false);
@@ -228,6 +248,15 @@ public class CardHandUI : MonoBehaviour
         SetMulliganMode(false);
     }
 
+    private void OnSuperChoiceClicked(int index)
+    {
+        if (!IsPhaseLoadoutSelect()) return;
+        if (_super == null) return;
+        if (index < 0 || index > 2) return;
+
+        _super.SetChoiceServerRpc((SuperChoice)index);
+    }
+
     private void SetMulliganMode(bool enabled)
     {
         _mulliganMode = enabled;
@@ -269,6 +298,9 @@ public class CardHandUI : MonoBehaviour
 
         if (mulliganButton != null)
             mulliganButton.gameObject.SetActive(show);
+
+        if (superChoiceRoot != null)
+            superChoiceRoot.SetActive(show);
     }
 
     private int GetMulliganRemaining()
@@ -297,6 +329,24 @@ public class CardHandUI : MonoBehaviour
     {
         ClampSelectionToRemaining(remaining);
         UpdateMulliganButton();
+    }
+
+    private void HandleSuperChoiceChanged(SuperChoice oldChoice, SuperChoice newChoice)
+    {
+        UpdateSuperChoiceVisuals();
+    }
+
+    private void UpdateSuperChoiceVisuals()
+    {
+        if (_super == null) return;
+        if (superChoiceHighlights == null || superChoiceHighlights.Length == 0) return;
+
+        int idx = (int)_super.Choice.Value;
+        for (int i = 0; i < superChoiceHighlights.Length; i++)
+        {
+            if (superChoiceHighlights[i] != null)
+                superChoiceHighlights[i].SetActive(i == idx);
+        }
     }
 
     private void ClampSelectionToRemaining(int remaining)

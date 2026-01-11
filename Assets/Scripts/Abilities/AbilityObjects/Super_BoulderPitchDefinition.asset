@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c842e677a8b105c40a8e2ff2c182546c, type: 3}
+  m_Name: Super_BoulderPitchDefinition
+  m_EditorClassIdentifier: 
+  choice: 1
+  seismicRadius: 6
+  seismicKnockbackDistance: 4
+  seismicKnockbackSeconds: 0.25
+  seismicTargetMask:
+    serializedVersion: 2
+    m_Bits: 0
+  boulderProjectilePrefab: {fileID: 0}
+  boulderSpawnForward: 1.2
+  boulderSpawnUp: 1
+  boulderLaunchSpeed: 14
+  boulderLaunchUpVelocity: 6
+  boulderDamageToStructures: 600
+  boulderDamageToPlayers: 0
+  boulderHitMask:
+    serializedVersion: 2
+    m_Bits: 0
+  gorgeDevour: {fileID: 0}
+  gorgePulseCount: 3
+  gorgePulseInterval: 0.2
+  gorgeCcImmunitySeconds: 2
+  seismicRadius: 6
+  seismicKnockbackDistance: 4
+  seismicKnockbackSeconds: 0.25
+  seismicTargetMask:
+    serializedVersion: 2
+    m_Bits: 0
+  boulderProjectilePrefab: {fileID: 6364927621497589564, guid: d0a71627a9e5a7f44a1ca8537c9c2952, type: 3}
+  boulderSpawnForward: 1.2
+  boulderSpawnUp: 1
+  boulderLaunchSpeed: 14
+  boulderLaunchUpVelocity: 6
+  boulderDamageToStructures: 600
+  boulderDamageToPlayers: 0
+  boulderHitMask:
+    serializedVersion: 2
+    m_Bits: 0
+  gorgeDevour: {fileID: 11400000, guid: 48cd06767a66dd44c9be2322e0f424f5, type: 2}
+  gorgePulseCount: 3
+  gorgePulseInterval: 0.2
+  gorgeCcImmunitySeconds: 2

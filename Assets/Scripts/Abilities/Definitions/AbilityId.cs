@@ -6,5 +6,7 @@ public enum AbilityId
     Throw = 3,
 
     Fortify = 4,
+    Devour = 5,
+    Super = 6,
     None = -1,
 }

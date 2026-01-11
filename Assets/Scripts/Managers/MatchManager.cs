@@ -590,6 +590,10 @@ public class MatchManager : NetworkBehaviour
 
         runner.ApplyLoadoutServer(defaultAbilityLoadout);
         runner.ResetForNewRoundServerRpc();
+
+        var super = playerGO.GetComponent<SuperCharge>();
+        if (super != null)
+            super.ResetForNewRoundServerRpc();
     }
 
     public void EndMatchImmediateServer(ulong winnerClientId)
@@ -682,6 +686,7 @@ public class MatchManager : NetworkBehaviour
         }
 
         DespawnAllMinionsServer();
+        DespawnAllBuildablesServer();
         ResetAllTilesServer();
         ResetAllZonesServer();
         ResetAllMillstonesServer();
@@ -744,6 +749,22 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    private void DespawnAllBuildablesServer()
+    {
+        if (!IsServer) return;
+
+        var buildables = FindObjectsOfType<BuildableInstance>(true);
+        foreach (var b in buildables)
+        {
+            if (b == null) continue;
+            var no = b.GetComponent<NetworkObject>();
+            if (no != null && no.IsSpawned)
+                no.Despawn(true);
+            else
+                Destroy(b.gameObject);
+        }
+    }
+
     private void ResetAllZonesServer()
     {
         if (!IsServer) return;
@@ -796,7 +817,8 @@ public class MatchManager : NetworkBehaviour
         bool gddAbility = id == AbilityId.Stomp ||
                           id == AbilityId.Rally ||
                           id == AbilityId.Parry ||
-                          id == AbilityId.Throw;
+                          id == AbilityId.Throw ||
+                          id == AbilityId.Devour;
 
         if (!gddAbility) return false;
         return _defById != null && _defById.ContainsKey(id);

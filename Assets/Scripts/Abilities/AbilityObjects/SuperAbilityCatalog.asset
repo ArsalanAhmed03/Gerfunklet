@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c426f916b2e231b4fb42c1ded1f5f322, type: 3}
+  m_Name: SuperAbilityCatalog
+  m_EditorClassIdentifier: 
+  entries:
+  - choice: 0
+    definition: {fileID: 11400000, guid: 2c9f0ad3e01b16b4790df73507d06028, type: 2}
+    icon: {fileID: 0}
+  - choice: 1
+    definition: {fileID: 11400000, guid: 8fa5fad9c2df0e042b81f29ae4c63114, type: 2}
+    icon: {fileID: 0}
+  - choice: 2
+    definition: {fileID: 11400000, guid: d13ff59b894ec0e4ca88427292662bb0, type: 2}
+    icon: {fileID: 0}

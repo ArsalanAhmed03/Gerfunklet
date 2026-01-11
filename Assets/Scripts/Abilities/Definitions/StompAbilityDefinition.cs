@@ -16,6 +16,7 @@ public class StompAbilityDefinition : AbilityDefinition
         var center = runner.transform.position;
         int mask = LayerMask.GetMask("Player");
         var hits = Physics.OverlapSphere(center, radius, mask, QueryTriggerInteraction.Ignore);
+        var super = runner.GetComponent<SuperCharge>();
 
         foreach (var col in hits)
         {
@@ -37,6 +38,9 @@ public class StompAbilityDefinition : AbilityDefinition
             }
 
             targetStats.TakeDamageServerRpc(damage);
+
+            if (super != null)
+                super.AddChargeFromDamageDealtServer(damage);
 
             var targetStun = col.GetComponentInParent<StunReceiver>();
             if (targetStun != null)

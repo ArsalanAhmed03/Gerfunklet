@@ -23,6 +23,7 @@ public class PlayerMovement : NetworkBehaviour
     private InputAction ability2Action;
     private InputAction ability3Action;
     private InputAction ability4Action;
+    private InputAction superAction;
     private InputAction millstoneDropAction;
     private InputAction millstoneThrowAction;
     private InputAction restAction;
@@ -44,6 +45,7 @@ public class PlayerMovement : NetworkBehaviour
             ability2Action = playerMap.FindAction("Ability2");
             ability3Action = playerMap.FindAction("Ability3");
             ability4Action = playerMap.FindAction("Ability4");
+            superAction = playerMap.FindAction("Super", false);
             millstoneDropAction = playerMap.FindAction("MillstoneDrop", false);
             millstoneThrowAction = playerMap.FindAction("MillstoneThrow", false);
             restAction = playerMap.FindAction("Rest", false);
@@ -62,6 +64,7 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Enable();
         ability3Action?.Enable();
         ability4Action?.Enable();
+        superAction?.Enable();
         millstoneDropAction?.Enable();
         millstoneThrowAction?.Enable();
         restAction?.Enable();
@@ -79,6 +82,7 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Disable();
         ability3Action?.Disable();
         ability4Action?.Disable();
+        superAction?.Disable();
         millstoneDropAction?.Disable();
         millstoneThrowAction?.Disable();
         restAction?.Disable();
@@ -92,6 +96,13 @@ public class PlayerMovement : NetworkBehaviour
         if (GameManager.Instance != null && !GameManager.Instance.GameplayEnabled) return;
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned)
+        {
+            playerAnimator?.SetMoving(false);
+            return;
+        }
+
+        var knockback = GetComponent<KnockbackReceiver>();
+        if (knockback != null && knockback.IsKnockedBack)
         {
             playerAnimator?.SetMoving(false);
             return;
@@ -196,6 +207,12 @@ public class PlayerMovement : NetworkBehaviour
                 Debug.Log("Casting ability slot 3");
                 abilityRunner.TryCastSlot(3);
             }
+        }
+
+        var superController = GetComponent<SuperController>();
+        if (superController != null && superAction != null && superAction.WasPressedThisFrame())
+        {
+            superController.TryCastSuper();
         }
 
         var carrier = GetComponent<MillstoneCarrier>();

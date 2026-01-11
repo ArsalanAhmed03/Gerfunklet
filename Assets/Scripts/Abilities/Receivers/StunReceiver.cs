@@ -10,14 +10,17 @@ public class StunReceiver : NetworkBehaviour
     );
 
     private float stunEndTime;
+    private float ccImmuneUntil;
 
     public bool IsStunned => isStunned.Value;
+    public bool IsCcImmune => Time.time < ccImmuneUntil;
 
     [ServerRpc(RequireOwnership = false)]
     public void ApplyStunServerRpc(float duration)
     {
         Debug.Log($"ApplyStunServerRpc called on server for duration {duration}");
         if (duration <= 0f) return;
+        if (IsCcImmune) return;
 
         isStunned.Value = true;
         stunEndTime = Time.time + duration;
@@ -44,5 +47,13 @@ public class StunReceiver : NetworkBehaviour
         if (!IsServer) return;
         isStunned.Value = false;
         stunEndTime = 0f;
+        ccImmuneUntil = 0f;
+    }
+
+    public void ApplyCcImmunityServer(float duration)
+    {
+        if (!IsServer) return;
+        if (duration <= 0f) return;
+        ccImmuneUntil = Mathf.Max(ccImmuneUntil, Time.time + duration);
     }
 }

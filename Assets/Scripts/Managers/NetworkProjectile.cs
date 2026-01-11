@@ -37,6 +37,16 @@ public class NetworkProjectile : NetworkBehaviour
         damage = dmg;
     }
 
+    private SuperCharge GetOwnerSuperCharge()
+    {
+        if (NetworkManager.Singleton == null) return null;
+        if (!NetworkManager.Singleton.ConnectedClients.TryGetValue(_ownerClientId, out var cc))
+            return null;
+
+        var playerObj = cc.PlayerObject;
+        return playerObj != null ? playerObj.GetComponent<SuperCharge>() : null;
+    }
+
     private void Update()
     {
         if (!IsServer) return;
@@ -82,6 +92,10 @@ public class NetworkProjectile : NetworkBehaviour
                         }
                         
                         stats.TakeDamageServerRpc(damage);
+
+                        var super = GetOwnerSuperCharge();
+                        if (super != null)
+                            super.AddChargeFromDamageDealtServer(damage);
 
                         // var stun = hit.collider.GetComponentInParent<StunReceiver>();
                         // if (stun != null)

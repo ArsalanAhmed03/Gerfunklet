@@ -142,6 +142,24 @@ public class CardHand : NetworkBehaviour
             return;
         }
 
+        if (def.isBuildable)
+        {
+            var buildable = def.spawnPrefab.GetComponentInChildren<BuildableInstance>(true);
+            if (buildable == null)
+            {
+                Debug.LogWarning($"[CardHand][SERVER] Buildable card {id} missing BuildableInstance on prefab.");
+                return;
+            }
+
+            int active = CountActiveBuildables(OwnerClientId, id);
+            int cap = Mathf.Max(0, def.maxActive);
+            if (active >= cap)
+            {
+                Debug.Log($"[CardHand][SERVER] Buildable cap reached for {id}: {active}/{cap}");
+                return;
+            }
+        }
+
         var rules = GetComponent<DeploymentRules>();
         if (rules == null)
         {
@@ -189,6 +207,10 @@ public class CardHand : NetworkBehaviour
             netObj.Spawn();
         else
             Debug.LogWarning($"[CardHand][SERVER] Spawn prefab {def.spawnPrefab.name} has no NetworkObject; it will not replicate.");
+
+        var buildable = instance.GetComponentInChildren<BuildableInstance>(true);
+        if (buildable != null)
+            buildable.InitializeServer(OwnerClientId, def.id);
 
         AssignMinionTargetIfPresent(instance);
     }
@@ -250,6 +272,21 @@ public class CardHand : NetworkBehaviour
         }
 
         return null;
+    }
+
+    private int CountActiveBuildables(ulong ownerClientId, CardId cardId)
+    {
+        int count = 0;
+        var buildables = FindObjectsOfType<BuildableInstance>(true);
+        foreach (var b in buildables)
+        {
+            if (b == null) continue;
+            if (b.OwnerClientId != ownerClientId) continue;
+            if (b.CardId != cardId) continue;
+            count++;
+        }
+
+        return count;
     }
 
     private void BuildDeckServer()

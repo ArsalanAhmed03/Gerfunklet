@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38de5b937b57c6842aee7207c2530c99, type: 3}
+  m_Name: Devour Ability
+  m_EditorClassIdentifier: 
+  id: 5
+  cooldownSeconds: 4
+  radius: 3
+  coneAngleDegrees: 70
+  maxTargets: 3
+  targetMask:
+    serializedVersion: 2
+    m_Bits: 0
+  healPerTarget: 1
+  consumeFood: 1
+  maxFoodConsumed: 1
+  foodValueToHealMultiplier: 1
+  boneScrapPrefab: {fileID: 3640483488844440973, guid: d3180b2a4526e3440b8ff96c97ae55e6, type: 3}

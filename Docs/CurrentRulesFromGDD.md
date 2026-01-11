@@ -9,6 +9,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Match timer: counts down during Playing; when it reaches 0, phase switches to Overtime.
 - Single-match flow (rounds disabled by default).
 - RoundEnded is only used if `MatchManager.enableRounds` is turned on.
+- Super choice is selected during Ready/Mulligan (no separate loadout screen).
 
 ### Win Conditions (Current Build)
 - A match ends immediately when a Millstone is planted at the enemy altar (primary path).
@@ -28,12 +29,20 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Rally: move speed buff applied only to characters owned by the caster.
 - Parry: timed defense window, server-authoritative.
 - Throw: spawns a server-authoritative projectile.
+- Devour: cone grab that eats small/medium minions, heals per unit, can consume food, and optionally drops bone scrap.
+- Super: separate from the 4-slot loadout; charge builds from damage dealt/taken and Millstone throws.
+  - Seismic Quake: wide shockwave that knocks targets back.
+  - Boulder Pitch: long-arc throw that deals heavy damage to structures (and optional player damage).
+  - Gorge: rapid Devour chain with 2s CC immunity (blocks stun/knockback during the window).
 - Non-GDD abilities (like Fortify) are blocked by loadout validation and not usable.
 
 ### Spawning
 - Players are spawned as player objects by the server at scene load.
 - Minions can be spawned by a player action (server authoritative).
 - Minion behavior can be customized per prefab via `MinionStats` (damage, speed, attack range, targeting).
+
+### Buildables (Partial)
+- Buildable cards can enforce a per-card active cap (default max 2) using `BuildableInstance`.
 
 ### ATP (Economy – Partial)
 - ATP is server-authoritative with defaults from the GDD: cap 10, regen 0.9/s, start 4, global spend GCD 0.5s.
@@ -65,7 +74,6 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Not Yet Implemented (GDD)
 - Full Citadel/Throne flow (structure attacks, siege units, damage tuning).
 - Advanced card-hand UX (drag/ghost previews, placement feedback, card cooldown/GCD UI).
-- Devour and Super abilities.
 - Buildables and minion roster variety.
 - Overtime bonuses (ATP regen bonus, warmup/citadel modifiers).
 - Remote Config, analytics events, and security rules.
@@ -85,7 +93,13 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `FeastRing` to the player prefab with a trigger collider (1.5 radius); it auto-assigns owner from the player `NetworkObject`.
 - Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
 - Add `MinionStats` to minion prefabs to set per-unit damage/speed/attack range and targeting (e.g., Brute = StructuresFirst).
+- Add `BuildableInstance` to buildable prefabs and set the corresponding `CardDefinition.isBuildable = true` and `maxActive` cap.
 - Add `FoodPile` prefabs (NetworkObject + trigger collider) to the scene to test delivery.
 - Add `CitadelHealth` to each Citadel object and assign each Throne’s `requiredCitadel`.
 - Add `ThroneCapture` to each Throne with a trigger collider.
+- Add `SuperCharge` to the player prefab to track charge.
+- Add `SuperController` to the player prefab and assign a `SuperAbilityCatalog` with entries for Seismic Quake, Boulder Pitch, and Gorge.
+- Add `KnockbackReceiver` to the player prefab to allow Seismic Quake knockback.
+- Add a `BoulderPitchProjectile` prefab with `NetworkObject` + `NetworkTransform`, and assign it to your Super definition asset.
+- Add an input action named `Super` to the Player action map if you want to trigger Supers.
 - Assign `GameManager.citadelA/citadelB` and `GameManager.throneA/throneB`, plus enemy Citadel/Throne UI sliders/text if you want HUD updates.

@@ -41,6 +41,10 @@ public class MillstoneCarrier : NetworkBehaviour
         if (!IsServer) return;
         if (_carriedHead == null) return;
         _carriedHead.ThrowServer(direction);
+
+        var super = GetComponent<SuperCharge>();
+        if (super != null)
+            super.AddChargeFromObjectiveThrowServer();
     }
 
     [ServerRpc]

@@ -178,10 +178,15 @@ public class PlayerStatsManager : NetworkBehaviour
         if (dr != null)
             dmg = Mathf.CeilToInt(dmg * dr.DamageMultiplier);
 
+        int appliedDamage = Mathf.Min(dmg, health.Value);
         int newHealth = Mathf.Max(0, health.Value - dmg);
         health.Value = newHealth;
         _lastDamageTime = Time.time;
         UpdateHealthUIClientRpc(newHealth);
+
+        var super = GetComponent<SuperCharge>();
+        if (super != null)
+            super.AddChargeFromDamageTakenServer(appliedDamage);
         if (debugMode)
             Debug.Log($"[SERVER] Player took {dmg} damage. Health: {newHealth}/{maxHealth}");
 

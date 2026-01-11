@@ -1479,6 +1479,7 @@ GameObject:
   - component: {fileID: 5555323920800787725}
   - component: {fileID: 8339023900218228735}
   - component: {fileID: 6870752335949766055}
+  - component: {fileID: 7883721323458645716}
   - component: {fileID: 5106317536397322296}
   - component: {fileID: 718632155884554019}
   - component: {fileID: 4608961871452150818}
@@ -1491,7 +1492,9 @@ GameObject:
   - component: {fileID: -2442695406370314951}
   - component: {fileID: 7939002811733258187}
   - component: {fileID: 842967759317444558}
-  - component: {fileID: 7883721323458645716}
+  - component: {fileID: 1522124733348618740}
+  - component: {fileID: 8907733815589445031}
+  - component: {fileID: 3329868877281276582}
   m_Layer: 6
   m_Name: GERF_Final
   m_TagString: Player
@@ -1812,6 +1815,27 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   debugAbilities: 1
+--- !u!135 &7883721323458645716
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5810877104416554291}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 1.5
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &5106317536397322296
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1927,6 +1951,8 @@ MonoBehaviour:
   maxMulliganSwaps: 2
   catalog: {fileID: 11400000, guid: cbf8ae1759c0e954b83a12aecbd01aa2, type: 2}
   defaultDeck: 
+  MulliganRemaining:
+    m_InternalValue: 0
 --- !u!114 &7779146479763079280
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1996,27 +2022,55 @@ MonoBehaviour:
   maxStoredPiles: 20
   ownerClientId:
     m_InternalValue: 18446744073709551615
---- !u!135 &7883721323458645716
-SphereCollider:
+--- !u!114 &1522124733348618740
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5810877104416554291}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 1.5
-  m_Center: {x: 0, y: 0, z: 0}
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af3826f3c4780b4c8b6ac7393afe826, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  chargePerDamageDealt: 0.002
+  chargePerDamageTaken: 0.002
+  chargePerObjectiveThrow: 0.05
+  Charge01:
+    m_InternalValue: 0
+--- !u!114 &8907733815589445031
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5810877104416554291}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a1eebce025853c4386303dd208a903a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  catalog: {fileID: 11400000, guid: ca31c73753dc5764b99fac31aaeefd79, type: 2}
+  defaultChoice: 0
+  debugSuper: 1
+  Choice:
+    m_InternalValue: 0
+--- !u!114 &3329868877281276582
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5810877104416554291}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 13c078dd62db93048b5a41f6d528d40e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &5844545766679675734
 GameObject:
   m_ObjectHideFlags: 0
