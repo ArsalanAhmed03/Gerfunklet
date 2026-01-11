@@ -101,5 +101,6 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `SuperController` to the player prefab and assign a `SuperAbilityCatalog` with entries for Seismic Quake, Boulder Pitch, and Gorge.
 - Add `KnockbackReceiver` to the player prefab to allow Seismic Quake knockback.
 - Add a `BoulderPitchProjectile` prefab with `NetworkObject` + `NetworkTransform`, and assign it to your Super definition asset.
+- Add `SuperUI` to your HUD, and wire its `chargeBar`, `chargeText`, and `superButton` (optional) to show/activate Supers.
 - Add an input action named `Super` to the Player action map if you want to trigger Supers.
 - Assign `GameManager.citadelA/citadelB` and `GameManager.throneA/throneB`, plus enemy Citadel/Throne UI sliders/text if you want HUD updates.
