@@ -13,6 +13,13 @@ public class CardPlacementController : MonoBehaviour
     [SerializeField] private InputActionReference placeAction;
     [SerializeField] private InputActionReference cancelAction;
 
+    [Header("Indicator (optional)")]
+    [SerializeField] private GameObject placementIndicator;
+    [SerializeField] private Renderer placementIndicatorRenderer;
+    [SerializeField] private Vector3 indicatorOffset = new Vector3(0f, 0.02f, 0f);
+    [SerializeField] private Color validColor = new Color(0.2f, 1f, 0.2f, 0.75f);
+    [SerializeField] private Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.75f);
+
     private CardHand _hand;
     private DeploymentRules _rules;
     private int _handIndex = -1;
@@ -24,6 +31,8 @@ public class CardPlacementController : MonoBehaviour
     {
         if (worldCamera == null)
             worldCamera = Camera.main;
+
+        CacheIndicatorRenderer();
     }
 
     private void OnEnable()
@@ -47,6 +56,7 @@ public class CardPlacementController : MonoBehaviour
             worldCamera = Camera.main;
 
         bool hasPoint = TryGetPlacementPoint(out var point);
+        UpdateIndicator(hasPoint, point);
 
         if (IsCancelPressed())
         {
@@ -83,6 +93,7 @@ public class CardPlacementController : MonoBehaviour
         _ = def;
         _rules = hand.GetComponent<DeploymentRules>();
         _active = true;
+        UpdateIndicator(false, Vector3.zero);
     }
 
     public void CancelPlacement()
@@ -96,6 +107,7 @@ public class CardPlacementController : MonoBehaviour
         _hand = null;
         _rules = null;
         _handIndex = -1;
+        SetIndicatorActive(false);
     }
 
     private bool TryGetPlacementPoint(out Vector3 point)
@@ -146,6 +158,39 @@ public class CardPlacementController : MonoBehaviour
             return true;
 
         return false;
+    }
+
+    private void UpdateIndicator(bool hasPoint, Vector3 point)
+    {
+        if (!_active) return;
+        if (placementIndicator == null) return;
+
+        if (!hasPoint)
+        {
+            SetIndicatorActive(false);
+            return;
+        }
+
+        SetIndicatorActive(true);
+        placementIndicator.transform.position = point + indicatorOffset;
+
+        bool valid = _rules != null && _rules.IsPlacementValid(point, out _);
+        if (placementIndicatorRenderer != null)
+            placementIndicatorRenderer.material.color = valid ? validColor : invalidColor;
+    }
+
+    private void SetIndicatorActive(bool active)
+    {
+        if (placementIndicator == null) return;
+        if (placementIndicator.activeSelf == active) return;
+        placementIndicator.SetActive(active);
+    }
+
+    private void CacheIndicatorRenderer()
+    {
+        if (placementIndicatorRenderer != null) return;
+        if (placementIndicator == null) return;
+        placementIndicatorRenderer = placementIndicator.GetComponentInChildren<Renderer>(true);
     }
 
 }

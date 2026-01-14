@@ -13,6 +13,7 @@ public class MinionAI : NetworkBehaviour
     public float attackIntervalSeconds = 1f;
     [SerializeField] private bool destroyOnAttack = true;
     private float _nextAttackTime;
+    public bool AttacksEnabled { get; set; } = true;
 
     private void Start()
     {
@@ -55,6 +56,9 @@ public class MinionAI : NetworkBehaviour
         float distance = Vector3.Distance(transform.position, target.position);
         if (distance <= attackRange)
         {
+            if (!AttacksEnabled)
+                return;
+
             if (Time.time >= _nextAttackTime)
                 AttackTarget();
         }

@@ -10,6 +10,7 @@ public class CardHand : NetworkBehaviour
     [SerializeField] private int deckSize = 8;
     [SerializeField] private int handSize = 4;
     [SerializeField] private int maxMulliganSwaps = 2;
+    [SerializeField] private float globalHandGcdSeconds = 0.5f;
     [SerializeField] private CardCatalog catalog;
     [SerializeField] private List<CardId> defaultDeck = new List<CardId>();
 
@@ -31,10 +32,17 @@ public class CardHand : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    public NetworkVariable<double> HandGcdEndsAtServerTime = new NetworkVariable<double>(
+        0d,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     public event Action OnHandChanged;
     public event Action<int> OnMulliganRemainingChanged;
 
     public CardCatalog Catalog => catalog;
+    public float GlobalHandGcdSeconds => globalHandGcdSeconds;
 
     public override void OnNetworkSpawn()
     {
@@ -56,6 +64,7 @@ public class CardHand : NetworkBehaviour
         if (!IsServer) return;
 
         MulliganRemaining.Value = maxMulliganSwaps;
+        HandGcdEndsAtServerTime.Value = 0d;
         BuildDeckServer();
         DrawInitialHandServer();
     }
@@ -121,12 +130,19 @@ public class CardHand : NetworkBehaviour
         var id = (CardId)Hand[handIndex];
         if (id == CardId.None) return;
 
+        var stats = GetComponent<PlayerStatsManager>();
+        if (stats != null && !stats.IsAlive) return;
+
         if (MatchManager.Instance != null)
         {
             var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
             if (phase != MatchManager.MatchPhase.Playing && phase != MatchManager.MatchPhase.Overtime)
                 return;
         }
+
+        double now = NetworkManager.Singleton != null ? NetworkManager.Singleton.ServerTime.Time : Time.timeAsDouble;
+        if (IsHandOnCooldownServer(now))
+            return;
 
         CardDefinition def = null;
         float cost = 0f;
@@ -181,6 +197,7 @@ public class CardHand : NetworkBehaviour
                 return;
         }
 
+        HandGcdEndsAtServerTime.Value = now + globalHandGcdSeconds;
         Debug.Log($"[CardHand][SERVER] Play card {id} by {OwnerClientId} cost={cost} at {worldPosition}");
 
         StartCoroutine(SpawnCardAfterWarmupServer(def, worldPosition));
@@ -382,5 +399,17 @@ public class CardHand : NetworkBehaviour
     {
         if (index < 0 || index >= Hand.Count) return CardId.None;
         return (CardId)Hand[index];
+    }
+
+    public float GetHandCooldownRemaining()
+    {
+        double now = NetworkManager.Singleton != null ? NetworkManager.Singleton.ServerTime.Time : Time.timeAsDouble;
+        double remaining = HandGcdEndsAtServerTime.Value - now;
+        return remaining > 0d ? (float)remaining : 0f;
+    }
+
+    private bool IsHandOnCooldownServer(double now)
+    {
+        return now < HandGcdEndsAtServerTime.Value;
     }
 }

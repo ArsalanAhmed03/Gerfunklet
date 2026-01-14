@@ -7,7 +7,7 @@ using TMPro;
 public class PlayerStatsManager : NetworkBehaviour
 {
     [Header("Player Stats Configuration")]
-    [SerializeField] private int maxHealth = 100;
+    [SerializeField] private int maxHealth = 5000;
     [Header("Stamina (GDD defaults)")]
     [SerializeField] private float maxStamina = 600f;
     [SerializeField] private float activeDrainPercentPerSec = 0.40f;
@@ -18,6 +18,8 @@ public class PlayerStatsManager : NetworkBehaviour
     [SerializeField] private float underFireSeconds = 1.0f;
     [SerializeField] private float manualRestMinPercent = 0.10f;
     [SerializeField] private float autoWakePercent = 0.25f;
+    [SerializeField] private float sleepTransitionSeconds = 0.8f;
+    [SerializeField] private float lowStaminaPercent = 0.10f;
     [SerializeField] private float safeEnemyRadius = 2.5f;
     [SerializeField] private float safeEnemySeconds = 1.0f;
     [SerializeField] private float throneRegenRadius = 2.5f;
@@ -28,9 +30,13 @@ public class PlayerStatsManager : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private bool debugMode = true;
 
+    [Header("Respawn (GDD)")]
+    [SerializeField] private float respawnSeconds = 8f;
+    [SerializeField] private Vector3 respawnOffset = Vector3.zero;
+
     // Network Variables - synchronized across all clients
     private NetworkVariable<int> health = new NetworkVariable<int>(
-    100,
+    5000,
     NetworkVariableReadPermission.Everyone,
     NetworkVariableWritePermission.Server
 );
@@ -54,6 +60,12 @@ public class PlayerStatsManager : NetworkBehaviour
     );
 
     private NetworkVariable<bool> isSleeping = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> isSleepTransitioning = new NetworkVariable<bool>(
         false,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
@@ -85,7 +97,8 @@ public class PlayerStatsManager : NetworkBehaviour
     public bool IsAlive => isAlive.Value;
     public float Stamina => stamina.Value;
     public float MaxStamina => maxStamina;
-    public bool IsSleeping => isSleeping.Value;
+    public bool IsSleeping => isSleeping.Value || isSleepTransitioning.Value;
+    public bool IsSleepTransitioning => isSleepTransitioning.Value;
     public int WellFedStacks => wellFedStacks.Value;
     private float _lastDamageTime;
     private float _safeSince;
@@ -93,6 +106,8 @@ public class PlayerStatsManager : NetworkBehaviour
     private float _nextThroneCheckTime;
     private bool _cachedOnThrone;
     private float _wellFedEndTime;
+    private Coroutine _respawnRoutine;
+    private Coroutine _sleepTransitionRoutine;
 
     void Update()
     {
@@ -126,6 +141,7 @@ public class PlayerStatsManager : NetworkBehaviour
             isAlive.Value = true;
             stamina.Value = maxStamina;
             isSleeping.Value = false;
+            isSleepTransitioning.Value = false;
             wellFedStacks.Value = 0;
             _lastDamageTime = -999f;
             _safeSince = 0f;
@@ -143,6 +159,7 @@ public class PlayerStatsManager : NetworkBehaviour
         isAlive.OnValueChanged += OnAliveStatusChanged;
         stamina.OnValueChanged += OnStaminaValueChanged;
         isSleeping.OnValueChanged += OnSleepingChanged;
+        isSleepTransitioning.OnValueChanged += OnSleepTransitionChanged;
         wellFedStacks.OnValueChanged += OnWellFedStacksChanged;
 
         if (debugMode)
@@ -158,6 +175,7 @@ public class PlayerStatsManager : NetworkBehaviour
         isAlive.OnValueChanged -= OnAliveStatusChanged;
         stamina.OnValueChanged -= OnStaminaValueChanged;
         isSleeping.OnValueChanged -= OnSleepingChanged;
+        isSleepTransitioning.OnValueChanged -= OnSleepTransitionChanged;
         wellFedStacks.OnValueChanged -= OnWellFedStacksChanged;
     }
 
@@ -169,7 +187,7 @@ public class PlayerStatsManager : NetworkBehaviour
         Debug.Log("TakeDamageServerRpc called on server");
 
         if (!isAlive.Value) return;
-        if (isSleeping.Value) return;
+        if (IsSleeping) return;
         if (damage <= 0) return;
 
         var dmg = damage;
@@ -240,6 +258,12 @@ public class PlayerStatsManager : NetworkBehaviour
 
         if (debugMode)
             Debug.Log("Player died!");
+
+        var carrier = GetComponent<MillstoneCarrier>();
+        if (carrier != null && carrier.IsCarrying.Value)
+            carrier.DropCarriedHeadServer();
+
+        StartRespawnCountdownServer();
     }
 
     public void Respawn()
@@ -332,10 +356,12 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        StopSleepTransitionRoutine();
         health.Value = maxHealth;
         isAlive.Value = true;
         stamina.Value = maxStamina;
         isSleeping.Value = false;
+        isSleepTransitioning.Value = false;
         wellFedStacks.Value = 0;
         _lastDamageTime = -999f;
         _safeSince = 0f;
@@ -407,7 +433,7 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsServer) return;
         if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
-        if (isSleeping.Value) return;
+        if (isSleeping.Value || isSleepTransitioning.Value) return;
 
         float minRequired = maxStamina * manualRestMinPercent;
         if (stamina.Value < minRequired) return;
@@ -420,7 +446,7 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsServer) return;
         if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
-        if (!isSleeping.Value) return;
+        if (!isSleeping.Value && !isSleepTransitioning.Value) return;
 
         float required = maxStamina * autoWakePercent;
         if (stamina.Value < required) return;
@@ -459,19 +485,27 @@ public class PlayerStatsManager : NetworkBehaviour
     private void EnterSleepServer()
     {
         if (!IsServer) return;
-        if (isSleeping.Value) return;
+        if (isSleeping.Value || isSleepTransitioning.Value) return;
 
-        isSleeping.Value = true;
-        _safeSince = 0f;
-        _forcedWakeUsed = false;
+        if (sleepTransitionSeconds <= 0f)
+        {
+            SetSleepingStateServer(true);
+            return;
+        }
+
+        isSleepTransitioning.Value = true;
+        StopSleepTransitionRoutine();
+        _sleepTransitionRoutine = StartCoroutine(SleepTransitionRoutine());
     }
 
     private void WakeUpServer()
     {
         if (!IsServer) return;
-        if (!isSleeping.Value) return;
+        if (!isSleeping.Value && !isSleepTransitioning.Value) return;
 
-        isSleeping.Value = false;
+        StopSleepTransitionRoutine();
+        isSleepTransitioning.Value = false;
+        SetSleepingStateServer(false);
         _safeSince = 0f;
         ConsumeFeastFoodOnWakeServer();
     }
@@ -594,8 +628,9 @@ public class PlayerStatsManager : NetworkBehaviour
         if (GameManager.Instance == null)
             return;
 
+        bool sleepingNow = IsSleeping;
         if (GameManager.Instance.sleepingIndicator != null)
-            GameManager.Instance.sleepingIndicator.SetActive(isSleeping.Value);
+            GameManager.Instance.sleepingIndicator.SetActive(sleepingNow);
 
         if (GameManager.Instance.staminaBar == null)
             return;
@@ -606,10 +641,45 @@ public class PlayerStatsManager : NetworkBehaviour
         var staminaText = bar.GetComponentInChildren<TextMeshProUGUI>();
         if (staminaText != null)
         {
-            string state = isSleeping.Value ? "SLEEPING" : "STAMINA";
+            string state = sleepingNow ? "SLEEPING" : "STAMINA";
             staminaText.text = $"{state}: {Mathf.CeilToInt(stamina.Value)}";
         }
 
+        if (GameManager.Instance.lowStaminaIndicator != null)
+        {
+            bool low = !sleepingNow && stamina.Value <= maxStamina * lowStaminaPercent;
+            GameManager.Instance.lowStaminaIndicator.SetActive(low);
+        }
+
+    }
+
+    private void SetSleepingStateServer(bool sleeping)
+    {
+        if (!IsServer) return;
+
+        isSleeping.Value = sleeping;
+        if (sleeping)
+        {
+            _safeSince = 0f;
+            _forcedWakeUsed = false;
+        }
+    }
+
+    private System.Collections.IEnumerator SleepTransitionRoutine()
+    {
+        yield return new WaitForSeconds(sleepTransitionSeconds);
+        _sleepTransitionRoutine = null;
+
+        if (!IsServer) yield break;
+        isSleepTransitioning.Value = false;
+        SetSleepingStateServer(true);
+    }
+
+    private void StopSleepTransitionRoutine()
+    {
+        if (_sleepTransitionRoutine == null) return;
+        StopCoroutine(_sleepTransitionRoutine);
+        _sleepTransitionRoutine = null;
     }
 
     #endregion
@@ -636,14 +706,21 @@ public class PlayerStatsManager : NetworkBehaviour
     private void OnStaminaValueChanged(float oldValue, float newValue)
     {
         if (!IsOwner) return;
-        OnStaminaChanged?.Invoke(newValue, maxStamina, isSleeping.Value);
+        OnStaminaChanged?.Invoke(newValue, maxStamina, IsSleeping);
         UpdateStaminaUI();
     }
 
     private void OnSleepingChanged(bool oldValue, bool newValue)
     {
         if (!IsOwner) return;
-        OnStaminaChanged?.Invoke(stamina.Value, maxStamina, newValue);
+        OnStaminaChanged?.Invoke(stamina.Value, maxStamina, IsSleeping);
+        UpdateStaminaUI();
+    }
+
+    private void OnSleepTransitionChanged(bool oldValue, bool newValue)
+    {
+        if (!IsOwner) return;
+        OnStaminaChanged?.Invoke(stamina.Value, maxStamina, IsSleeping);
         UpdateStaminaUI();
     }
 
@@ -720,11 +797,14 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        StopRespawnCountdownServer();
+        StopSleepTransitionRoutine();
         health.Value = maxHealth;
         points.Value = startingPoints;
         isAlive.Value = true;
         stamina.Value = maxStamina;
         isSleeping.Value = false;
+        isSleepTransitioning.Value = false;
         wellFedStacks.Value = 0;
         _lastDamageTime = -999f;
         _safeSince = 0f;
@@ -733,5 +813,86 @@ public class PlayerStatsManager : NetworkBehaviour
 
         // also update owner UI immediately
         UpdateHealthUIClientRpc(health.Value);
+    }
+
+    private void StartRespawnCountdownServer()
+    {
+        if (!IsServer) return;
+        if (respawnSeconds <= 0f) return;
+
+        StopRespawnCountdownServer();
+        _respawnRoutine = StartCoroutine(RespawnCountdownRoutine());
+    }
+
+    private void StopRespawnCountdownServer()
+    {
+        if (_respawnRoutine != null)
+        {
+            StopCoroutine(_respawnRoutine);
+            _respawnRoutine = null;
+        }
+    }
+
+    private System.Collections.IEnumerator RespawnCountdownRoutine()
+    {
+        float endTime = Time.time + respawnSeconds;
+
+        while (Time.time < endTime)
+        {
+            if (MatchManager.Instance != null)
+            {
+                var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
+                if (phase == MatchManager.MatchPhase.MatchEnded || phase == MatchManager.MatchPhase.RoundEnded)
+                    yield break;
+            }
+
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        RespawnAtHomeServer();
+        _respawnRoutine = null;
+    }
+
+    private void RespawnAtHomeServer()
+    {
+        if (!IsServer) return;
+
+        var pedestal = FindHomePedestal();
+        if (pedestal != null)
+        {
+            Vector3 pos = pedestal.transform.position + respawnOffset;
+            Quaternion rot = pedestal.transform.rotation;
+
+            transform.SetPositionAndRotation(pos, rot);
+
+            var tele = GetComponent<PlayerTeleport>();
+            if (tele != null)
+            {
+                var target = new ClientRpcParams
+                {
+                    Send = new ClientRpcSendParams
+                    {
+                        TargetClientIds = new[] { OwnerClientId }
+                    }
+                };
+
+                tele.TeleportOwnerClientRpc(pos, rot, target);
+            }
+        }
+
+        ApplyRespawnServer();
+    }
+
+    private MillstonePedestal FindHomePedestal()
+    {
+        var pedestals = FindObjectsOfType<MillstonePedestal>(true);
+        foreach (var p in pedestals)
+        {
+            if (p == null) continue;
+            if (p.ownerClientId.Value == OwnerClientId)
+                return p;
+        }
+
+        return null;
     }
 }

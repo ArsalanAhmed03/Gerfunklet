@@ -4,6 +4,7 @@ using UnityEngine;
 public class MillstoneCarrier : NetworkBehaviour
 {
     [SerializeField] private Transform carryAnchor;
+    [SerializeField] private float manualDropSeconds = 0.2f;
 
     public NetworkVariable<bool> IsCarrying = new NetworkVariable<bool>(
         false,
@@ -12,6 +13,7 @@ public class MillstoneCarrier : NetworkBehaviour
     );
 
     private MillstoneHead _carriedHead;
+    private Coroutine _manualDropRoutine;
 
     public Transform CarryAnchor => carryAnchor != null ? carryAnchor : transform;
 
@@ -33,6 +35,7 @@ public class MillstoneCarrier : NetworkBehaviour
         if (!IsServer) return;
         _carriedHead = null;
         IsCarrying.Value = false;
+        StopManualDropRoutine();
     }
 
     [ServerRpc]
@@ -51,18 +54,44 @@ public class MillstoneCarrier : NetworkBehaviour
     public void DropCarriedHeadServerRpc()
     {
         if (!IsServer) return;
-        DropCarriedHeadServer();
+        if (_carriedHead == null) return;
+
+        if (manualDropSeconds <= 0f)
+        {
+            DropCarriedHeadServer();
+            return;
+        }
+
+        if (_manualDropRoutine != null) return;
+        _manualDropRoutine = StartCoroutine(ManualDropAfterDelay());
     }
 
     public void DropCarriedHeadServer()
     {
         if (!IsServer) return;
         if (_carriedHead == null) return;
+        StopManualDropRoutine();
         _carriedHead.DropServer();
     }
 
     public bool IsCarryingHead(MillstoneHead head)
     {
         return _carriedHead == head;
+    }
+
+    private System.Collections.IEnumerator ManualDropAfterDelay()
+    {
+        yield return new WaitForSeconds(manualDropSeconds);
+
+        _manualDropRoutine = null;
+        if (_carriedHead == null) yield break;
+        _carriedHead.DropServer();
+    }
+
+    private void StopManualDropRoutine()
+    {
+        if (_manualDropRoutine == null) return;
+        StopCoroutine(_manualDropRoutine);
+        _manualDropRoutine = null;
     }
 }

@@ -10,6 +10,7 @@ public class CardHandUI : MonoBehaviour
     [SerializeField] private Image[] slotIcons = new Image[4];
     [SerializeField] private Button[] slotButtons = new Button[4];
     [SerializeField] private GameObject[] mulliganHighlights = new GameObject[4];
+    [SerializeField] private Image[] slotCooldownFills = new Image[4];
 
     [Header("Mulligan")]
     [SerializeField] private Button mulliganButton;
@@ -72,6 +73,8 @@ public class CardHandUI : MonoBehaviour
     {
         if (!_bound)
             BindIfNeeded();
+
+        RefreshCooldownVisuals();
     }
 
     private void BindIfNeeded()
@@ -177,6 +180,7 @@ public class CardHandUI : MonoBehaviour
         }
 
         UpdateSelectionVisuals();
+        RefreshCooldownVisuals();
     }
 
     private void OnSlotClicked(int index)
@@ -301,6 +305,36 @@ public class CardHandUI : MonoBehaviour
 
         if (superChoiceRoot != null)
             superChoiceRoot.SetActive(show);
+    }
+
+    private void RefreshCooldownVisuals()
+    {
+        if (_hand == null) return;
+
+        float remaining = _hand.GetHandCooldownRemaining();
+        float duration = Mathf.Max(0.001f, _hand.GlobalHandGcdSeconds);
+        bool show = remaining > 0f && IsPhasePlayable();
+        float t = show ? Mathf.Clamp01(remaining / duration) : 0f;
+
+        if (slotCooldownFills != null)
+        {
+            for (int i = 0; i < slotCooldownFills.Length; i++)
+            {
+                var img = slotCooldownFills[i];
+                if (img == null) continue;
+                img.fillAmount = t;
+                img.enabled = show;
+            }
+        }
+
+        if (slotButtons != null && !_mulliganMode)
+        {
+            for (int i = 0; i < slotButtons.Length; i++)
+            {
+                if (slotButtons[i] != null)
+                    slotButtons[i].interactable = !show && slotIcons != null && i < slotIcons.Length && slotIcons[i] != null && slotIcons[i].enabled;
+            }
+        }
     }
 
     private int GetMulliganRemaining()

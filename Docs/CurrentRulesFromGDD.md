@@ -11,6 +11,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - RoundEnded is only used if `MatchManager.enableRounds` is turned on.
 - Super choice is selected during Ready/Mulligan (no separate loadout screen).
 - Gerfunklet ability set is fixed to 5 core abilities (Stomp, Devour, Rally, Parry, Throw).
+- Match end shows result text and reward ratio (winner 100% / loser 25%).
 
 ### Win Conditions (Current Build)
 - A match ends immediately when a Millstone is planted at the enemy altar (primary path).
@@ -40,6 +41,10 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Minions can be spawned by a player action (server authoritative).
 - Minion behavior can be customized per prefab via `MinionStats` (damage, speed, attack range, targeting).
 
+### Respawn (GDD core)
+- When the Gerfunklet is defeated, it respawns after 8 seconds at its Millstone Pedestal.
+- If the Gerfunklet is carrying the Millstone, it drops on death.
+
 ### Buildables (Partial)
 - Buildable cards can enforce a per-card active cap (default max 2) using `BuildableInstance`.
 
@@ -59,13 +64,11 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - At 0 stamina, the Gerfunklet sleeps (invulnerable, inert).
 - Stamina regens while sleeping (throne vs ground rates) with an under-fire penalty.
 - Auto-wake occurs at 25% stamina when safe; optional forced wake and manual rest are available via `Rest`/`Wake` input actions.
+- Sleep transition uses a 0.8s delay before the sleeping state fully applies (configurable).
 - Feast ring: allied minions can deliver food piles; on wake up to 5 piles are consumed to restore stamina and grant Well-Fed (+1.0/s for 6s per stack, max 5 stacks).
 
 ## Implemented But Diverging From GDD
 - Objective zones still exist in the scene flow, but are disabled by default in `MatchManager`.
-- GDD respawn delay: 8s; current build resets on round reset without a per-player respawn timer.
-- GDD overtime is a fixed 1:00; current build applies ATP regen +15%, warmup -50%, and citadel damage +10%.
-- Millstone throw/drop is implemented, but reclaim/contest rules are simplified (any player can pick up a dropped head after a 1s hold).
 - Throne capture uses a simple channel gated by Citadel destroyed; Citadel damage is currently just proximity damage.
 - ObjectiveZone wins are disabled by default to match GDD win paths (can be re-enabled in MatchManager).
 
@@ -82,18 +85,30 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add an `AtpUI` component to your HUD and wire its slider/text fields to display ATP.
 - Assign `GameManager.staminaBar` if you want the stamina UI to update.
 - Assign `GameManager.sleepingIndicator` (any GameObject) if you want a visible sleeping overlay.
+- Assign `GameManager.lowStaminaIndicator` and add `PulseUI` if you want the pulsing low-stamina warning at <=10%.
 - Add `CardHand` to the player prefab and assign a `CardCatalog` (or default deck) to initialize cards.
 - Add `DeploymentRules` to the player prefab and optionally set `homeAnchor`, `baseDeployRadius`, `forwardDeployRadius`, and `midlineX`.
 - Add `CardPlacementController` to the player prefab or HUD and assign `placementMask` to your ground layer; optionally set input actions for place/cancel.
+- Assign a `placementIndicator` (quad/mesh) on `CardPlacementController` if you want green/red valid placement feedback.
+- Add `ForwardBeacon` to the Forward Beacon buildable prefab so it unlocks the forward deploy ring for its owner.
+- If you want blocked/hazard placement checks, set `DeploymentRules.blockingMask` to a layer that contains non-placeable colliders.
 - Assign `spawnPrefab` and `spawnWarmupSeconds` on each `CardDefinition` asset you want to be playable.
+- On `CardHandUI`, optionally assign `slotCooldownFills` (Image overlays) to show the global hand GCD.
 - Add input actions named `MillstoneDrop` and `MillstoneThrow` to the Player action map if you want manual drop/throw controls.
+- Add `MillstoneStatusUI` to your HUD; assign `carriedIcon` (top bar), and a world-space `arrowIndicator` (optional).
+- Add `MillstoneAltarHalo` to each Millstone Altar and assign a child `haloVisual` to show when the carrier is in range.
 - Add input actions named `Rest` and `Wake` to the Player action map if you want manual sleep/force-wake controls.
 - Add `FeastRing` to the player prefab with a trigger collider (1.5 radius); it auto-assigns owner from the player `NetworkObject`.
 - Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
+- Add `MinionForageAgent` to minion prefabs to allow server-directed food foraging.
+- Add `ForageModeController` to the player prefab to control Protect/Balanced/Max Forage modes.
+- Add `ForageModeUI` to your HUD and wire its three buttons/highlights to change forage mode while sleeping.
+- Add `FeastCounterUI` to your HUD if you want to display stored feast piles.
 - Add `MinionStats` to minion prefabs to set per-unit damage/speed/attack range and targeting (e.g., Brute = StructuresFirst).
 - Add `BuffReceiver` to minion prefabs if you want Rally to affect their move/attack speed.
 - Add `BuildableInstance` to buildable prefabs and set the corresponding `CardDefinition.isBuildable = true` and `maxActive` cap.
 - Add `Barricade` to barricade prefabs if you want Stomp to break them.
+- Add `FoodDropper` to minions/buildables/crates to spawn food piles on death (assign small/medium/big `FoodPile` prefabs).
 - Add `FoodPile` prefabs (NetworkObject + trigger collider) to the scene to test delivery.
 - Add `CitadelHealth` to each Citadel object and assign each Throne’s `requiredCitadel`.
 - Add `ThroneCapture` to each Throne with a trigger collider.
@@ -106,7 +121,11 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add an input action named `Ability5` to the Player action map to support the 5th Gerfunklet ability.
 - Update `AbilityHotbarUI` to have 5 icon slots and wire the 5th slot sprite.
 - Add `ThrownObject` is runtime-added by the Throw ability, but thrown targets must be networked (`NetworkObject`) to replicate.
+- Add results UI to the HUD and wire `GameManager.resultsRoot` + `GameManager.rewardsText` (optional `rematchButton`).
+- Respawn uses the `MillstonePedestal` assigned to the player’s ownerClientId; ensure pedestals are present and owned.
 - Assign `GameManager.citadelA/citadelB` and `GameManager.throneA/throneB`, plus enemy Citadel/Throne UI sliders/text if you want HUD updates.
+- Add `PlayerMeleeAttack` to the player prefab to enable Gerfunklet basic attacks (150 damage, 3s interval).
+- Ensure `PlayerMovement.moveSpeed = 2.1` and `carryMoveSpeedMultiplier = 1.3/2.1` on the player prefab (GDD move speeds).
 ### Ability Activation (Current Build)
 - Abilities are bound to 5 hotbar slots (`Ability1`..`Ability5`) and can be used during Playing/Overtime.
 - Super is bound to a separate `Super` input or Super HUD button when charge is full.

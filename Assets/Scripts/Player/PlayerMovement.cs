@@ -5,8 +5,8 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : NetworkBehaviour
 {
     [Header("Movement Settings")]
-    public float moveSpeed = 5f;
-    [SerializeField] private float carryMoveSpeedMultiplier = 0.75f;
+    public float moveSpeed = 2.1f;
+    [SerializeField] private float carryMoveSpeedMultiplier = 1.3f / 2.1f;
 
     [Header("Input Action Asset")]
     public InputActionAsset playerInputActions; // Assign in Inspector
@@ -115,6 +115,12 @@ public class PlayerMovement : NetworkBehaviour
         var statsManager = GetComponent<PlayerStatsManager>();
         if (statsManager != null)
         {
+            if (!statsManager.IsAlive)
+            {
+                playerAnimator?.SetMoving(false);
+                return;
+            }
+
             if (restAction != null && restAction.WasPressedThisFrame())
                 statsManager.RequestSleepServerRpc();
 
@@ -167,8 +173,9 @@ public class PlayerMovement : NetworkBehaviour
         if (attackAction != null && attackAction.WasPressedThisFrame())
         {
             Debug.Log("Attack!");
-            // Trigger attack animation
-            // playerAnimator?.Attack();
+            var melee = GetComponent<PlayerMeleeAttack>();
+            if (melee != null)
+                melee.TryAttack();
 
             if (debugSpawnMinionOnAttack && LocalSpawner.Instance != null)
             {

@@ -98,7 +98,11 @@ public class AbilityRunner : NetworkBehaviour
         if (stun != null && stun.IsStunned) return;
 
         var stats = GetComponent<PlayerStatsManager>();
-        if (stats != null && stats.IsSleeping) return;
+        if (stats != null)
+        {
+            if (!stats.IsAlive) return;
+            if (stats.IsSleeping) return;
+        }
 
         if (slotIndex < 0 || slotIndex > 4) return;
 
@@ -123,7 +127,11 @@ public class AbilityRunner : NetworkBehaviour
         if (stun != null && stun.IsStunned) return;
 
         var stats = GetComponent<PlayerStatsManager>();
-        if (stats != null && stats.IsSleeping) return;
+        if (stats != null)
+        {
+            if (!stats.IsAlive) return;
+            if (stats.IsSleeping) return;
+        }
 
         var id = GetSlotId(slotIndex);
         if (id == AbilityId.None) return;

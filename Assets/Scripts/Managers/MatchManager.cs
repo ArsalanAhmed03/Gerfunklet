@@ -55,7 +55,7 @@ public class MatchManager : NetworkBehaviour
     };
 
     [Header("Match Timer")]
-    [SerializeField] private float matchSeconds = 180f;
+    [SerializeField] private float matchSeconds = 210f;
 
     [Header("Ability Database (assign all defs here)")]
     [SerializeField] private AbilityDefinition[] allAbilityDefs;

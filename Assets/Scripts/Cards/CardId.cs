@@ -8,6 +8,7 @@ public enum CardId
     Acolyte = 5,
     Barricade = 6,
     RallyBanner = 7,
+    ForwardBeacon = 8,
 
     None = -1,
 }

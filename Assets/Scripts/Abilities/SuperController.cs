@@ -38,7 +38,11 @@ public class SuperController : NetworkBehaviour
         if (stun != null && stun.IsStunned) return;
 
         var stats = GetComponent<PlayerStatsManager>();
-        if (stats != null && stats.IsSleeping) return;
+        if (stats != null)
+        {
+            if (!stats.IsAlive) return;
+            if (stats.IsSleeping) return;
+        }
 
         CastSuperServerRpc();
     }
@@ -57,7 +61,11 @@ public class SuperController : NetworkBehaviour
         if (stun != null && stun.IsStunned) return;
 
         var stats = GetComponent<PlayerStatsManager>();
-        if (stats != null && stats.IsSleeping) return;
+        if (stats != null)
+        {
+            if (!stats.IsAlive) return;
+            if (stats.IsSleeping) return;
+        }
 
         var charge = GetComponent<SuperCharge>();
         if (charge == null) return;

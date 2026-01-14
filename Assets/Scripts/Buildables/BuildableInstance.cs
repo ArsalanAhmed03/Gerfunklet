@@ -14,5 +14,9 @@ public class BuildableInstance : NetworkBehaviour
 
         OwnerClientId = ownerClientId;
         cardId = id;
+
+        var beacon = GetComponentInChildren<ForwardBeacon>(true);
+        if (beacon != null)
+            beacon.SetOwnerServer(ownerClientId);
     }
 }
