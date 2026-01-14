@@ -37,6 +37,9 @@ public class SuperController : NetworkBehaviour
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned) return;
 
+        var disable = GetComponent<CombatDisableReceiver>();
+        if (disable != null && disable.IsDisabled) return;
+
         var stats = GetComponent<PlayerStatsManager>();
         if (stats != null)
         {
@@ -59,6 +62,9 @@ public class SuperController : NetworkBehaviour
 
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned) return;
+
+        var disable = GetComponent<CombatDisableReceiver>();
+        if (disable != null && disable.IsDisabled) return;
 
         var stats = GetComponent<PlayerStatsManager>();
         if (stats != null)

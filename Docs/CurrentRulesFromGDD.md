@@ -41,6 +41,21 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Minions can be spawned by a player action (server authoritative).
 - Minion behavior can be customized per prefab via `MinionStats` (damage, speed, attack range, targeting).
 
+### Minion Roster (Expanded Abilities)
+- Crimson Jester: Sonic Shriek on spawn and when 3+ enemies are nearby; deals 20 AoE damage and applies Disorient (attack speed 0.75x + 15% miss chance for 2s).
+- Shadow Skirmisher: Swift Strike grants +20% move speed for 3s on spawn and on hit if the target is not currently targeting it.
+- Grin Brawler: Frenzied Assault grants +5% attack speed per hit for 2s (max 3 stacks); at <=50% HP, gains 10% damage reduction for 4s (once).
+- Sleek Infiltrator: System Overload channels 1.5s on structures/high-value units; disables target attacks/abilities for 3s and deals 50 damage to structures over 3s.
+- Avian Scout: Perceptive Peck has a 25% chance to apply Marked (targets take +10% damage for 3s).
+- Crimson Crusher: Unstoppable Charge (15s CD) dashes 3 tiles, deals 75 damage, knocks back, and takes 50% reduced damage during charge; double damage to structures.
+- Spiked Runner: Bursting Impact on spawn charges 2 tiles then explodes for 60 AoE damage and 25% slow for 1s; electrified spikes apply 5 damage over 2s on hits for 8s.
+- Sentinel Drone: Zone Deployment on spawn and every 12s (defensive or disruption field).
+- Gloom Weaver: Shadow Bind (10s CD) deals 30 damage and roots for 2s; structures take 60 damage and 50% attack speed debuff for 2s.
+- Blast Beetle: Volatile Burst on death deals 100 AoE damage and spawns a burning patch (3s, 10 DPS).
+- Energy Siphon: Passive drain converts +0.1 ATP/sec when enemy minions are in range; active drain (15s CD) drains 1 ATP/sec from enemy Gerfunklet for 3s and converts 1.5 ATP total.
+- Plasma Sentry: Overcharge (20s CD) gives +50% attack speed for 5s and pierces one extra target; post-overcharge 3s debuff at -50% attack speed.
+- Optional AI helpers: `MinionKiteBehavior`, `MinionRetreatOnLowHealth`, `MinionTargetingProfile`, and `MinionStats.visionRange` tuning.
+
 ### Respawn (GDD core)
 - When the Gerfunklet is defeated, it respawns after 8 seconds at its Millstone Pedestal.
 - If the Gerfunklet is carrying the Millstone, it drops on death.
@@ -81,7 +96,6 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Not Yet Implemented (GDD)
 - Full Citadel/Throne flow (structure attacks, siege units, damage tuning).
 - Advanced card-hand UX (drag/ghost previews, placement feedback, card cooldown/GCD UI).
-- Expanded minion roster variety (new units, advanced per-role AI behaviors).
 - Remote Config, analytics events, and security rules.
 
 ## Scene/Prefab Changes Required To Use New Systems
@@ -107,6 +121,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
 - Add `MinionForageAgent` to minion prefabs to allow server-directed food foraging.
 - Add `MinionGatherer` to Harvester/Scout prefabs to enable resource harvesting/stealing.
+- Add `AttackSpeedModifierReceiver`, `MoveSpeedModifierReceiver`, `MissChanceReceiver`, `DamageAmplifierReceiver`, `CombatDisableReceiver`, `RootReceiver`, and `DamageOverTimeReceiver` to player + minion prefabs that should receive those effects.
+- Add `DamageReceiver` to minion prefabs if you want damage reduction effects (Frenzied Assault, Unstoppable Charge, Sentinel Defensive Field).
 - Add `ResourceNode` objects to the scene (NetworkObject) and set `maxEnergy`, `respawnSeconds`, and `autoAssignOwner` as needed.
 - Add `ResourceDeposit` objects (trigger + NetworkObject) near each base so harvesters can deposit ATP.
 - Add `ForageModeController` to the player prefab to control Protect/Balanced/Max Forage modes.
@@ -115,6 +131,21 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `MinionStats` to minion prefabs to set per-unit damage/speed/attack range and targeting (e.g., Brute = StructuresFirst).
 - For Spewer-like AoE, enable `MinionStats.useAoeAttack` and tune `aoeDamage/aoeRadius/aoeThreshold`.
 - For Acolyte-like healing, enable `MinionStats.canHealAllies` and tune `healAmount/interval/range/threshold`.
+- Create a `ZoneField` prefab with `NetworkObject` (optional `NetworkTransform`) and assign it to `MinionZoneDeployment`.
+- Create a `BurningPatch` prefab with `NetworkObject` and assign it to `MinionVolatileBurst`.
+- Crimson Jester prefab: add `MinionSonicShriek`.
+- Shadow Skirmisher prefab: add `MinionSwiftStrike`.
+- Grin Brawler prefab: add `MinionFrenziedAssault`.
+- Sleek Infiltrator prefab: add `MinionSystemOverload`.
+- Avian Scout prefab: add `MinionMarkOnHit`, optional `MinionKiteBehavior`, and set `MinionStats.visionRange = 7`.
+- Crimson Crusher prefab: add `MinionUnstoppableCharge`.
+- Spiked Runner prefab: add `MinionBurstingImpact`.
+- Sentinel Drone prefab: add `MinionZoneDeployment` + `ZoneField` prefab (assign on component).
+- Gloom Weaver prefab: add `MinionShadowBind`.
+- Blast Beetle prefab: add `MinionVolatileBurst` + `BurningPatch` prefab.
+- Energy Siphon prefab: add `MinionEnergySiphon`.
+- Plasma Sentry prefab: add `MinionOvercharge`.
+- Optional AI helpers per prefab: `MinionKiteBehavior`, `MinionRetreatOnLowHealth`, `MinionTargetingProfile`.
 - Add `BuffReceiver` to minion prefabs if you want Rally to affect their move/attack speed.
 - Sleeping Gerfunklet auto-forms a protect ring: non-foraging minions guard around the player and engage nearby enemies.
 - Add `BuildableInstance` to buildable prefabs and set the corresponding `CardDefinition.isBuildable = true` and `maxActive` cap.

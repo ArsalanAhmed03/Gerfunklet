@@ -67,6 +67,10 @@ public class MinionAI : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        var stun = GetComponent<StunReceiver>();
+        if (stun != null && stun.IsStunned)
+            return;
+
         if (_guardAnchor != null)
         {
             UpdateGuard();
@@ -78,14 +82,25 @@ public class MinionAI : NetworkBehaviour
 
         if (target == null) return;
 
-        // Move towards target
-        MoveTowards(target.position, stopDistance);
+        // Move towards target (kite if configured)
+        var kite = GetComponent<MinionKiteBehavior>();
+        if (kite != null && kite.TryGetKiteDestination(transform, target, out var kiteDest))
+            MoveTowards(kiteDest, kite.StopDistance);
+        else
+            MoveTowards(target.position, stopDistance);
         TryAttackTarget(target);
     }
 
     private void AttackTarget()
     {
         if (target == null) return;
+
+        var miss = GetComponent<MissChanceReceiver>();
+        if (miss != null && miss.MissChance > 0f && Random.value < miss.MissChance)
+        {
+            ScheduleNextAttack();
+            return;
+        }
 
         var parry = target.GetComponent<ParryReceiver>();
         if (parry != null && parry.IsParryActive)
@@ -140,6 +155,7 @@ public class MinionAI : NetworkBehaviour
             }
         }
         ScheduleNextAttack();
+        NotifyHit(target);
 
         if (destroyOnAttack)
             Destroy(gameObject);
@@ -149,6 +165,10 @@ public class MinionAI : NetworkBehaviour
     {
         if (activeTarget == null) return;
         if (!AttacksEnabled) return;
+
+        var disable = GetComponent<CombatDisableReceiver>();
+        if (disable != null && disable.IsDisabled)
+            return;
 
         if (_stats != null && _stats.CanHealAllies)
         {
@@ -176,18 +196,35 @@ public class MinionAI : NetworkBehaviour
         if (buff != null)
             attackSpeedMul = Mathf.Max(0.1f, buff.AttackSpeedMultiplier);
 
-        _nextAttackTime = Time.time + (attackIntervalSeconds / attackSpeedMul);
+        var mod = GetComponent<AttackSpeedModifierReceiver>();
+        if (mod != null)
+            attackSpeedMul *= mod.Multiplier;
+
+        _nextAttackTime = Time.time + (attackIntervalSeconds / Mathf.Max(0.1f, attackSpeedMul));
     }
 
     private void MoveTowards(Vector3 destination, float stopDist)
     {
+        var root = GetComponent<RootReceiver>();
+        if (root != null && root.IsRooted)
+            return;
+
         Vector3 delta = destination - transform.position;
         float dist = delta.magnitude;
         if (dist <= stopDist)
             return;
 
         Vector3 direction = delta.normalized;
-        transform.position += direction * moveSpeed * Time.deltaTime;
+        float speedMul = 1f;
+        var buff = GetComponent<BuffReceiver>();
+        if (buff != null)
+            speedMul *= buff.MoveSpeedMultiplier;
+
+        var moveMod = GetComponent<MoveSpeedModifierReceiver>();
+        if (moveMod != null)
+            speedMul *= moveMod.Multiplier;
+
+        transform.position += direction * moveSpeed * speedMul * Time.deltaTime;
         transform.forward = direction;
     }
 
@@ -203,6 +240,13 @@ public class MinionAI : NetworkBehaviour
 
     private Transform AcquireTarget()
     {
+        var profile = GetComponent<MinionTargetingProfile>();
+        if (profile != null)
+        {
+            var preferred = FindPreferredEnemyUnit(profile, detectionRadius);
+            if (preferred != null) return preferred;
+        }
+
         if (_stats != null && _stats.TargetingMode == MinionStats.Targeting.StructuresFirst)
         {
             var structure = FindNearestStructure(detectionRadius);
@@ -213,6 +257,60 @@ public class MinionAI : NetworkBehaviour
         var unit = FindNearestEnemyUnit(detectionRadius);
         if (unit != null) return unit;
         return FindNearestStructure(detectionRadius);
+    }
+
+    private Transform FindPreferredEnemyUnit(MinionTargetingProfile profile, float radius)
+    {
+        if (profile == null || profile.PreferredRoles == null || profile.PreferredRoles.Length == 0)
+            return null;
+
+        int mask = enemyMask.value != 0 ? enemyMask.value : ~0;
+        var hits = Physics.OverlapSphere(transform.position, radius, mask, QueryTriggerInteraction.Ignore);
+        Transform best = null;
+        float bestScore = float.MaxValue;
+
+        foreach (var col in hits)
+        {
+            var owner = col.GetComponentInParent<MinionOwner>();
+            if (owner == null || IsFriendly(owner.OwnerClientId))
+                continue;
+
+            var stats = col.GetComponentInParent<MinionStats>();
+            if (stats == null)
+                continue;
+
+            if (!IsPreferredRole(stats.RoleType, profile.PreferredRoles))
+                continue;
+
+            float score;
+            if (profile.PreferLowestHp)
+            {
+                var health = col.GetComponentInParent<MinionHealth>();
+                score = health != null ? health.Health01 : 1f;
+            }
+            else
+            {
+                score = (stats.transform.position - transform.position).sqrMagnitude;
+            }
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = stats.transform;
+            }
+        }
+
+        return best;
+    }
+
+    private bool IsPreferredRole(MinionStats.Role role, MinionStats.Role[] preferred)
+    {
+        foreach (var pref in preferred)
+        {
+            if (pref == role)
+                return true;
+        }
+        return false;
     }
 
     private Transform FindNearestEnemyUnit(float radius)
@@ -444,5 +542,30 @@ public class MinionAI : NetworkBehaviour
         attackRange = stats.AttackRange;
         attackIntervalSeconds = stats.AttackIntervalSeconds;
         destroyOnAttack = stats.DestroyOnAttack;
+        if (stats.VisionRange > 0f)
+            detectionRadius = stats.VisionRange;
+    }
+
+    private void NotifyHit(Transform hitTarget)
+    {
+        var swift = GetComponent<MinionSwiftStrike>();
+        if (swift != null)
+            swift.NotifyHit(hitTarget);
+
+        var frenzy = GetComponent<MinionFrenziedAssault>();
+        if (frenzy != null)
+            frenzy.NotifyHit();
+
+        var mark = GetComponent<MinionMarkOnHit>();
+        if (mark != null)
+            mark.NotifyHit(hitTarget);
+
+        var burst = GetComponent<MinionBurstingImpact>();
+        if (burst != null)
+            burst.NotifyHit(hitTarget);
+
+        var overcharge = GetComponent<MinionOvercharge>();
+        if (overcharge != null)
+            overcharge.NotifyHit(hitTarget);
     }
 }
