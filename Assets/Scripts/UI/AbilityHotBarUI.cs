@@ -5,7 +5,7 @@ using UnityEngine.UI;
 public class AbilityHotbarUI : MonoBehaviour
 {
     [Header("Icons")]
-    [SerializeField] private Image[] buttonIcons = new Image[4];
+    [SerializeField] private Image[] buttonIcons = new Image[5];
     [SerializeField] private AbilityCatalog iconDb;
     [SerializeField] private Color enabledTint = Color.white;
     [SerializeField] private Color disabledTint = new Color(1f, 1f, 1f, 0.35f);
@@ -47,7 +47,7 @@ public class AbilityHotbarUI : MonoBehaviour
         _forceRefresh = true;
     }
 
-    private AbilityId[] _lastIds = new AbilityId[4];
+    private AbilityId[] _lastIds = new AbilityId[5];
 
     private void RefreshIconsIfNeeded()
     {
@@ -60,7 +60,8 @@ public class AbilityHotbarUI : MonoBehaviour
             _forceRefresh = false;
         }
 
-        for (int i = 0; i < 4; i++)
+        int count = Mathf.Min(buttonIcons.Length, _lastIds.Length);
+        for (int i = 0; i < count; i++)
         {
             var id = _localRunner.GetSlotId(i);
             if (_lastIds[i].Equals(id)) continue;

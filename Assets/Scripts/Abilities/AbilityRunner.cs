@@ -16,10 +16,12 @@ public class AbilityRunner : NetworkBehaviour
         AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     public NetworkVariable<AbilityId> Slot3 = new NetworkVariable<AbilityId>(
         AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    public NetworkVariable<AbilityId> Slot4 = new NetworkVariable<AbilityId>(
+        AbilityId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
     // Local derived cache (not networked)
     [Header("Local derived defs (debug)")]
-    public AbilityDefinition[] slots = new AbilityDefinition[4];
+    public AbilityDefinition[] slots = new AbilityDefinition[5];
 
     private readonly Dictionary<AbilityId, float> serverReadyAt = new Dictionary<AbilityId, float>();
 
@@ -37,7 +39,8 @@ public class AbilityRunner : NetworkBehaviour
         Slot1.OnValueChanged += (_, __) => RebuildLocalSlots();
         Slot2.OnValueChanged += (_, __) => RebuildLocalSlots();
         Slot3.OnValueChanged += (_, __) => RebuildLocalSlots();
-        Debug.Log($"[AbilityRunner][SPAWN] local={NetworkManager.Singleton.LocalClientId} owner={OwnerClientId} isServer={IsServer} defDbNull={(defDb==null)} slots={Slot0.Value},{Slot1.Value},{Slot2.Value},{Slot3.Value}");
+        Slot4.OnValueChanged += (_, __) => RebuildLocalSlots();
+        Debug.Log($"[AbilityRunner][SPAWN] local={NetworkManager.Singleton.LocalClientId} owner={OwnerClientId} isServer={IsServer} defDbNull={(defDb==null)} slots={Slot0.Value},{Slot1.Value},{Slot2.Value},{Slot3.Value},{Slot4.Value}");
         RebuildLocalSlots();
     }
 
@@ -47,6 +50,7 @@ public class AbilityRunner : NetworkBehaviour
         slots[1] = Resolve(Slot1.Value);
         slots[2] = Resolve(Slot2.Value);
         slots[3] = Resolve(Slot3.Value);
+        slots[4] = Resolve(Slot4.Value);
     }
 
     private AbilityDefinition Resolve(AbilityId id)
@@ -64,6 +68,7 @@ public class AbilityRunner : NetworkBehaviour
             1 => Slot1.Value,
             2 => Slot2.Value,
             3 => Slot3.Value,
+            4 => Slot4.Value,
             _ => AbilityId.None
         };
     }
@@ -72,12 +77,13 @@ public class AbilityRunner : NetworkBehaviour
     public void ApplyLoadoutServer(AbilityId[] chosen)
     {
         if (!IsServer) return;
-        if (chosen == null || chosen.Length != 4) return;
+        if (chosen == null || chosen.Length != 5) return;
 
         Slot0.Value = chosen[0];
         Slot1.Value = chosen[1];
         Slot2.Value = chosen[2];
         Slot3.Value = chosen[3];
+        Slot4.Value = chosen[4];
 
         serverReadyAt.Clear();
     }
@@ -94,7 +100,7 @@ public class AbilityRunner : NetworkBehaviour
         var stats = GetComponent<PlayerStatsManager>();
         if (stats != null && stats.IsSleeping) return;
 
-        if (slotIndex < 0 || slotIndex > 3) return;
+        if (slotIndex < 0 || slotIndex > 4) return;
 
         // IMPORTANT: gate on replicated ids, not on ScriptableObject refs
         var id = GetSlotId(slotIndex);
@@ -106,7 +112,7 @@ public class AbilityRunner : NetworkBehaviour
     [ServerRpc]
     private void CastAbilityServerRpc(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex > 3) return;
+        if (slotIndex < 0 || slotIndex > 4) return;
 
         if (MatchManager.Instance == null) return;
         var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;

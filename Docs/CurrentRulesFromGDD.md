@@ -10,6 +10,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Single-match flow (rounds disabled by default).
 - RoundEnded is only used if `MatchManager.enableRounds` is turned on.
 - Super choice is selected during Ready/Mulligan (no separate loadout screen).
+- Gerfunklet ability set is fixed to 5 core abilities (Stomp, Devour, Rally, Parry, Throw).
 
 ### Win Conditions (Current Build)
 - A match ends immediately when a Millstone is planted at the enemy altar (primary path).
@@ -19,16 +20,14 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ### Citadel (Partial)
 - Citadel health uses GDD max HP (2000) and can drive optional tier visuals at 75/50/25% HP.
 
-### Loadout System
-- Each player selects 4 unique abilities during LoadoutSelect.
-- Loadouts are validated on the server (no duplicates, allowed IDs only).
-- Loadouts lock when both players submit; countdown starts immediately.
+### Ability Loadout
+- Ability loadout UI is disabled; Gerfunklet abilities are fixed to 5 core abilities during the match.
 
 ### Abilities (Implemented)
-- Stomp: AoE damage and short stun (server-authoritative), with client-side stomp animation.
-- Rally: move speed buff applied only to characters owned by the caster.
-- Parry: timed defense window, server-authoritative.
-- Throw: spawns a server-authoritative projectile.
+- Stomp: AoE damage and short stun (server-authoritative), breaks `Barricade` objects in range, and adds +8% Super charge per hit; with client-side stomp animation.
+- Rally: 10s aura; +10% move speed and +15% attack speed to caster-owned allies; doubled for minions carrying objects.
+- Parry: timed defense window; successful parry stuns the attacker for 0.4s (applies to player attacks and minion attacks with `StunReceiver`).
+- Throw: throws nearby objects or small/medium minions in an arc, dealing impact damage and knockback.
 - Devour: cone grab that eats small/medium minions, heals per unit, can consume food, and optionally drops bone scrap.
 - Super: separate from the 4-slot loadout; charge builds from damage dealt/taken and Millstone throws.
   - Seismic Quake: wide shockwave that knocks targets back.
@@ -63,7 +62,6 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Feast ring: allied minions can deliver food piles; on wake up to 5 piles are consumed to restore stamina and grant Well-Fed (+1.0/s for 6s per stack, max 5 stacks).
 
 ## Implemented But Diverging From GDD
-- GDD Rally includes attack speed and ally/minion buffs; current implementation only applies move speed and only to caster-owned characters.
 - Objective zones still exist in the scene flow, but are disabled by default in `MatchManager`.
 - GDD respawn delay: 8s; current build resets on round reset without a per-player respawn timer.
 - GDD overtime is a fixed 1:00; current build applies ATP regen +15%, warmup -50%, and citadel damage +10%.
@@ -93,7 +91,9 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `FeastRing` to the player prefab with a trigger collider (1.5 radius); it auto-assigns owner from the player `NetworkObject`.
 - Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
 - Add `MinionStats` to minion prefabs to set per-unit damage/speed/attack range and targeting (e.g., Brute = StructuresFirst).
+- Add `BuffReceiver` to minion prefabs if you want Rally to affect their move/attack speed.
 - Add `BuildableInstance` to buildable prefabs and set the corresponding `CardDefinition.isBuildable = true` and `maxActive` cap.
+- Add `Barricade` to barricade prefabs if you want Stomp to break them.
 - Add `FoodPile` prefabs (NetworkObject + trigger collider) to the scene to test delivery.
 - Add `CitadelHealth` to each Citadel object and assign each Throne’s `requiredCitadel`.
 - Add `ThroneCapture` to each Throne with a trigger collider.
@@ -103,4 +103,10 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add a `BoulderPitchProjectile` prefab with `NetworkObject` + `NetworkTransform`, and assign it to your Super definition asset.
 - Add `SuperUI` to your HUD, and wire its `chargeBar`, `chargeText`, and `superButton` (optional) to show/activate Supers.
 - Add an input action named `Super` to the Player action map if you want to trigger Supers.
+- Add an input action named `Ability5` to the Player action map to support the 5th Gerfunklet ability.
+- Update `AbilityHotbarUI` to have 5 icon slots and wire the 5th slot sprite.
+- Add `ThrownObject` is runtime-added by the Throw ability, but thrown targets must be networked (`NetworkObject`) to replicate.
 - Assign `GameManager.citadelA/citadelB` and `GameManager.throneA/throneB`, plus enemy Citadel/Throne UI sliders/text if you want HUD updates.
+### Ability Activation (Current Build)
+- Abilities are bound to 5 hotbar slots (`Ability1`..`Ability5`) and can be used during Playing/Overtime.
+- Super is bound to a separate `Super` input or Super HUD button when charge is full.

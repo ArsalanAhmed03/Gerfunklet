@@ -17,3 +17,4 @@ MonoBehaviour:
   radius: 3.5
   durationSeconds: 10
   moveSpeedMultiplier: 1.1
+  attackSpeedMultiplier: 1.15

@@ -45,11 +45,12 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private bool enableDeathEndsRound = false;
     [SerializeField] private bool enableObjectiveZones = false;
     [SerializeField] private bool enableAbilityLoadoutUI = false;
-    [SerializeField] private AbilityId[] defaultAbilityLoadout = new AbilityId[4]
+    [SerializeField] private AbilityId[] defaultAbilityLoadout = new AbilityId[5]
     {
         AbilityId.Stomp,
-        AbilityId.Parry,
+        AbilityId.Devour,
         AbilityId.Rally,
+        AbilityId.Parry,
         AbilityId.Throw
     };
 
@@ -585,7 +586,7 @@ public class MatchManager : NetworkBehaviour
         var runner = playerGO.GetComponent<AbilityRunner>();
         if (runner == null) return;
 
-        if (defaultAbilityLoadout == null || defaultAbilityLoadout.Length != 4)
+        if (defaultAbilityLoadout == null || defaultAbilityLoadout.Length != 5)
             return;
 
         runner.ApplyLoadoutServer(defaultAbilityLoadout);
@@ -880,7 +881,7 @@ public class MatchManager : NetworkBehaviour
 
         if (phase != MatchPhase.LoadoutSelect) return;
         if (LoadoutsLocked.Value) return;
-        if (chosenAbilities == null || chosenAbilities.Length != 4) return;
+        if (chosenAbilities == null || chosenAbilities.Length != 5) return;
 
         var seen = new HashSet<AbilityId>();
         for (int i = 0; i < chosenAbilities.Length; i++)
@@ -893,7 +894,7 @@ public class MatchManager : NetworkBehaviour
             _playerLoadouts = new Dictionary<ulong, AbilityId[]>();
 
         _playerLoadouts[sender] = chosenAbilities;
-        Debug.Log($"[Loadout][SERVER] chosen for {sender}: {chosenAbilities[0]},{chosenAbilities[1]},{chosenAbilities[2]},{chosenAbilities[3]}");
+        Debug.Log($"[Loadout][SERVER] chosen for {sender}: {chosenAbilities[0]},{chosenAbilities[1]},{chosenAbilities[2]},{chosenAbilities[3]},{chosenAbilities[4]}");
 
 
         Debug.Log($"[Loadout][SERVER] Stored loadout for {sender}. totalSubmitted={_playerLoadouts.Count}/{requiredPlayers}");
@@ -904,9 +905,9 @@ public class MatchManager : NetworkBehaviour
 
         if (TryGetPlayerAbilityRunner(sender, out var runner))
         {
-            Debug.Log($"[Loadout][SERVER] Found runner for {sender}. Before apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value}");
+            Debug.Log($"[Loadout][SERVER] Found runner for {sender}. Before apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value},{runner.Slot4.Value}");
             runner.ApplyLoadoutServer(chosenAbilities);
-            Debug.Log($"[Loadout][SERVER] After apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value}");
+            Debug.Log($"[Loadout][SERVER] After apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value},{runner.Slot4.Value}");
             runner.ResetForNewRoundServerRpc();
 
         }

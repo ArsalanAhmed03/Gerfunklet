@@ -14,7 +14,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 3
   cooldownSeconds: 4
-  projectilePrefab: {fileID: -1774017202085996492, guid: fb9059aaed590ad468a39c571075eeba, type: 3}
-  spawnForward: 1.2
-  spawnUp: 0.8
+  pickupRadius: 2
+  pickupMask:
+    serializedVersion: 2
+    m_Bits: 0
+  allowMinionThrow: 1
+  maxMinionSize: 1
+  allowBarricadeThrow: 1
+  throwSpeed: 12
+  throwUpVelocity: 4
+  throwGravity: 20
+  throwLifeSeconds: 1.5
+  hitRadius: 0.35
+  hitMask:
+    serializedVersion: 2
+    m_Bits: 0
   damage: 25
+  knockbackDistance: 2.5
+  knockbackSeconds: 0.2

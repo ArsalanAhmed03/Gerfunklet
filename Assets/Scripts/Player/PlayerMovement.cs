@@ -23,6 +23,7 @@ public class PlayerMovement : NetworkBehaviour
     private InputAction ability2Action;
     private InputAction ability3Action;
     private InputAction ability4Action;
+    private InputAction ability5Action;
     private InputAction superAction;
     private InputAction millstoneDropAction;
     private InputAction millstoneThrowAction;
@@ -45,6 +46,7 @@ public class PlayerMovement : NetworkBehaviour
             ability2Action = playerMap.FindAction("Ability2");
             ability3Action = playerMap.FindAction("Ability3");
             ability4Action = playerMap.FindAction("Ability4");
+            ability5Action = playerMap.FindAction("Ability5", false);
             superAction = playerMap.FindAction("Super", false);
             millstoneDropAction = playerMap.FindAction("MillstoneDrop", false);
             millstoneThrowAction = playerMap.FindAction("MillstoneThrow", false);
@@ -64,6 +66,7 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Enable();
         ability3Action?.Enable();
         ability4Action?.Enable();
+        ability5Action?.Enable();
         superAction?.Enable();
         millstoneDropAction?.Enable();
         millstoneThrowAction?.Enable();
@@ -82,6 +85,7 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Disable();
         ability3Action?.Disable();
         ability4Action?.Disable();
+        ability5Action?.Disable();
         superAction?.Disable();
         millstoneDropAction?.Disable();
         millstoneThrowAction?.Disable();
@@ -206,6 +210,12 @@ public class PlayerMovement : NetworkBehaviour
             {
                 Debug.Log("Casting ability slot 3");
                 abilityRunner.TryCastSlot(3);
+            }
+
+            if (ability5Action != null && ability5Action.WasPressedThisFrame())
+            {
+                Debug.Log("Casting ability slot 4");
+                abilityRunner.TryCastSlot(4);
             }
         }
 

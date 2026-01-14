@@ -19,6 +19,7 @@ public class MinionStats : MonoBehaviour
     [SerializeField] private int damage = 10;
     [SerializeField] private float moveSpeed = 3f;
     [SerializeField] private float attackRange = 1.5f;
+    [SerializeField] private float attackIntervalSeconds = 1f;
     [SerializeField] private bool destroyOnAttack = true;
 
     [Header("Targeting")]
@@ -31,6 +32,7 @@ public class MinionStats : MonoBehaviour
     public int Damage => damage;
     public float MoveSpeed => moveSpeed;
     public float AttackRange => attackRange;
+    public float AttackIntervalSeconds => attackIntervalSeconds;
     public bool DestroyOnAttack => destroyOnAttack;
     public Targeting TargetingMode => targeting;
     public Size SizeCategory => size;

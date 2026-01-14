@@ -4,8 +4,8 @@ using UnityEngine;
 public class SuperCharge : NetworkBehaviour
 {
     [Header("Charge Sources (tunable)")]
-    [SerializeField] private float chargePerDamageDealt = 0.002f;
-    [SerializeField] private float chargePerDamageTaken = 0.002f;
+    [SerializeField] private float chargePerDamageDealt = 0.0005f;
+    [SerializeField] private float chargePerDamageTaken = 0.0005f;
     [SerializeField] private float chargePerObjectiveThrow = 0.05f;
 
     public NetworkVariable<float> Charge01 = new NetworkVariable<float>(
@@ -40,6 +40,12 @@ public class SuperCharge : NetworkBehaviour
     {
         if (!IsServer) return;
         AddChargeServer(chargePerObjectiveThrow);
+    }
+
+    public void AddChargeFlatServer(float amount01)
+    {
+        if (!IsServer) return;
+        AddChargeServer(amount01);
     }
 
     public bool TryConsumeFullServer()

@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 
 [CreateAssetMenu(menuName = "Gerfunklet/Abilities/Stomp")]
@@ -7,6 +8,8 @@ public class StompAbilityDefinition : AbilityDefinition
     public float radius = 2.6f;
     public int damage = 160;
     public float stunSeconds = 0.25f;
+    public float superChargePerHit = 0.08f;
+    public LayerMask targetMask;
 
     [Header("Parry interaction")]
     public float attackerStunOnParry = 0.4f;
@@ -14,7 +17,7 @@ public class StompAbilityDefinition : AbilityDefinition
     public override void ServerExecute(AbilityRunner runner)
     {
         var center = runner.transform.position;
-        int mask = LayerMask.GetMask("Player");
+        int mask = targetMask.value != 0 ? targetMask.value : ~0;
         var hits = Physics.OverlapSphere(center, radius, mask, QueryTriggerInteraction.Ignore);
         var super = runner.GetComponent<SuperCharge>();
 
@@ -24,27 +27,46 @@ public class StompAbilityDefinition : AbilityDefinition
             if (col.GetComponentInParent<AbilityRunner>() == runner)
                 continue;
 
-            var targetStats = col.GetComponentInParent<PlayerStatsManager>();
-            if (targetStats == null) continue;
-
-            var targetParry = col.GetComponentInParent<ParryReceiver>();
-            if (targetParry != null && targetParry.IsParryActive)
+            var barricade = col.GetComponentInParent<Barricade>();
+            if (barricade != null)
             {
-                var attackerStun = runner.GetComponent<StunReceiver>();
-                if (attackerStun != null)
-                    attackerStun.ApplyStunServerRpc(attackerStunOnParry);
+                DespawnTarget(barricade.gameObject);
+                continue;
+            }
+
+            var targetStats = col.GetComponentInParent<PlayerStatsManager>();
+            if (targetStats != null)
+            {
+                var targetParry = col.GetComponentInParent<ParryReceiver>();
+                if (targetParry != null && targetParry.IsParryActive)
+                {
+                    var attackerStun = runner.GetComponent<StunReceiver>();
+                    if (attackerStun != null)
+                        attackerStun.ApplyStunServerRpc(attackerStunOnParry);
+
+                    continue;
+                }
+
+                targetStats.TakeDamageServerRpc(damage);
+
+                if (super != null)
+                    super.AddChargeFlatServer(superChargePerHit);
+
+                var targetStun = col.GetComponentInParent<StunReceiver>();
+                if (targetStun != null)
+                    targetStun.ApplyStunServerRpc(stunSeconds);
 
                 continue;
             }
 
-            targetStats.TakeDamageServerRpc(damage);
+            var minionHealth = col.GetComponentInParent<MinionHealth>();
+            if (minionHealth != null)
+            {
+                minionHealth.TakeDamage(damage);
 
-            if (super != null)
-                super.AddChargeFromDamageDealtServer(damage);
-
-            var targetStun = col.GetComponentInParent<StunReceiver>();
-            if (targetStun != null)
-                targetStun.ApplyStunServerRpc(stunSeconds);
+                if (super != null)
+                    super.AddChargeFlatServer(superChargePerHit);
+            }
         }
 
         runner.PlayAbilityFxClientRpc(id);
@@ -53,5 +75,14 @@ public class StompAbilityDefinition : AbilityDefinition
     public override void ClientExecute(AbilityRunner runner)
     {
         runner.GetComponent<PlayerMovement>()?.playerAnimator?.Stomp();
+    }
+
+    private void DespawnTarget(GameObject target)
+    {
+        var no = target.GetComponent<NetworkObject>();
+        if (no != null && no.IsSpawned)
+            no.Despawn(true);
+        else
+            Object.Destroy(target);
     }
 }

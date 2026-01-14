@@ -10,7 +10,9 @@ public class MinionAI : NetworkBehaviour
     [Header("Combat")]
     public int damage = 10;
     public float attackRange = 1.5f;
+    public float attackIntervalSeconds = 1f;
     [SerializeField] private bool destroyOnAttack = true;
+    private float _nextAttackTime;
 
     private void Start()
     {
@@ -53,12 +55,24 @@ public class MinionAI : NetworkBehaviour
         float distance = Vector3.Distance(transform.position, target.position);
         if (distance <= attackRange)
         {
-            AttackTarget();
+            if (Time.time >= _nextAttackTime)
+                AttackTarget();
         }
     }
 
     private void AttackTarget()
     {
+        var parry = target.GetComponent<ParryReceiver>();
+        if (parry != null && parry.IsParryActive)
+        {
+            var selfStun = GetComponent<StunReceiver>();
+            if (selfStun != null)
+                selfStun.ApplyStunServerRpc(0.4f);
+
+            _nextAttackTime = Time.time + attackIntervalSeconds;
+            return;
+        }
+
         Debug.Log($"{gameObject.name} attacks {target.name} for {damage} damage!");
         var citadel = target.GetComponent<CitadelHealth>();
         if (citadel != null)
@@ -69,6 +83,13 @@ public class MinionAI : NetworkBehaviour
         {
             target.GetComponent<PlayerStatsManager>()?.TakeDamageServerRpc(damage);
         }
+        float attackSpeedMul = 1f;
+        var buff = GetComponent<BuffReceiver>();
+        if (buff != null)
+            attackSpeedMul = Mathf.Max(0.1f, buff.AttackSpeedMultiplier);
+
+        _nextAttackTime = Time.time + (attackIntervalSeconds / attackSpeedMul);
+
         if (destroyOnAttack)
             Destroy(gameObject);
     }
@@ -81,6 +102,7 @@ public class MinionAI : NetworkBehaviour
         damage = stats.Damage;
         moveSpeed = stats.MoveSpeed;
         attackRange = stats.AttackRange;
+        attackIntervalSeconds = stats.AttackIntervalSeconds;
         destroyOnAttack = stats.DestroyOnAttack;
     }
 }

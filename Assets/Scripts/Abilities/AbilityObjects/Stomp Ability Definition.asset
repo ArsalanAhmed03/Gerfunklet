@@ -17,4 +17,8 @@ MonoBehaviour:
   radius: 2.6
   damage: 160
   stunSeconds: 0.25
+  superChargePerHit: 0.08
+  targetMask:
+    serializedVersion: 2
+    m_Bits: 0
   attackerStunOnParry: 0.4
