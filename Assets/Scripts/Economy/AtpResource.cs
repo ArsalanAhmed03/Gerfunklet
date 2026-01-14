@@ -73,6 +73,13 @@ public class AtpResource : NetworkBehaviour
         return true;
     }
 
+    public void AddAtpServer(float amount)
+    {
+        if (!IsServer) return;
+        if (amount <= 0f) return;
+        Atp.Value = Mathf.Clamp(Atp.Value + amount, 0f, atpCap);
+    }
+
     [ServerRpc]
     public void TrySpendServerRpc(float cost, ServerRpcParams rpcParams = default)
     {

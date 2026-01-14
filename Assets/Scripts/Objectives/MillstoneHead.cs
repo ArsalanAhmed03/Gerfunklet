@@ -22,6 +22,8 @@ public class MillstoneHead : NetworkBehaviour
 
     [Header("Collision")]
     [SerializeField] private Collider pickupCollider;
+    [SerializeField] private GameObject impactFxPrefab;
+    [SerializeField] private float impactFxLifeSeconds = 1.5f;
 
     [Header("Owner (home)")]
     public NetworkVariable<ulong> OwnerClientId = new NetworkVariable<ulong>(
@@ -382,6 +384,10 @@ public class MillstoneHead : NetworkBehaviour
 
         var hitTransform = collision.collider.transform;
 
+        Vector3 hitPoint = collision.GetContact(0).point;
+        Vector3 hitNormal = collision.GetContact(0).normal;
+        SpawnImpactFxClientRpc(hitPoint, hitNormal);
+
         if (IsFriendly(hitTransform))
             return;
 
@@ -412,6 +418,16 @@ public class MillstoneHead : NetworkBehaviour
         }
 
         _isThrown = false;
+    }
+
+    [ClientRpc]
+    private void SpawnImpactFxClientRpc(Vector3 position, Vector3 normal)
+    {
+        if (impactFxPrefab == null) return;
+        var rot = normal.sqrMagnitude > 0.001f ? Quaternion.LookRotation(normal) : Quaternion.identity;
+        var fx = Instantiate(impactFxPrefab, position, rot);
+        if (impactFxLifeSeconds > 0f)
+            Destroy(fx, impactFxLifeSeconds);
     }
 
     private bool IsFriendly(Transform target)

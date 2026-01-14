@@ -53,11 +53,13 @@ public class ForageModeController : NetworkBehaviour
         if (!_stats.IsSleeping)
         {
             SetForageOnAll(false);
+            UpdateGuards(false);
             return;
         }
 
         int targetCount = GetForagerTargetCount();
         AssignForagers(targetCount);
+        UpdateGuards(true);
     }
 
     [ServerRpc]
@@ -112,9 +114,33 @@ public class ForageModeController : NetworkBehaviour
         }
     }
 
+    private void UpdateGuards(bool sleeping)
+    {
+        var minions = FindObjectsOfType<MinionAI>(true);
+        foreach (var minion in minions)
+        {
+            if (minion == null) continue;
+            if (!IsOwnedMinion(minion)) continue;
+
+            var forage = minion.GetComponent<MinionForageAgent>();
+            bool isForaging = forage != null && forage.IsForaging;
+
+            if (!sleeping || isForaging)
+                minion.ClearGuard();
+            else
+                minion.SetGuardAnchor(transform);
+        }
+    }
+
     private bool IsOwnedMinion(MinionForageAgent agent)
     {
         var owner = agent.GetComponent<MinionOwner>();
+        return owner != null && owner.OwnerClientId == OwnerClientId;
+    }
+
+    private bool IsOwnedMinion(MinionAI minion)
+    {
+        var owner = minion.GetComponent<MinionOwner>();
         return owner != null && owner.OwnerClientId == OwnerClientId;
     }
 

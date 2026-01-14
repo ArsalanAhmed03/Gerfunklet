@@ -52,6 +52,12 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - ATP is server-authoritative with defaults from the GDD: cap 10, regen 0.9/s, start 4, global spend GCD 0.5s.
 - Minion spawn cost is enforced when an AtpResource component is present on the player.
 
+### Resource Nodes (Harvesters/Scouts)
+- Resource nodes store a small amount of energy (default 3) and respawn after a delay when depleted.
+- Harvesters gather from friendly/neutral nodes, then carry ATP back to their team deposit.
+- Scouts can steal from enemy-owned nodes when `allowTheft` is enabled.
+- Low-HP harvesters/scouts retreat toward their deposit.
+
 ### Card/Hand Scaffold (Partial)
 - Each player has a deck of 8 cards and a hand of 4 cards.
 - Mulligan: up to 2 swaps per match, only during LoadoutSelect.
@@ -75,8 +81,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 ## Not Yet Implemented (GDD)
 - Full Citadel/Throne flow (structure attacks, siege units, damage tuning).
 - Advanced card-hand UX (drag/ghost previews, placement feedback, card cooldown/GCD UI).
-- Buildables and minion roster variety.
-- Overtime bonuses (ATP regen bonus, warmup/citadel modifiers).
+- Expanded minion roster variety (new units, advanced per-role AI behaviors).
 - Remote Config, analytics events, and security rules.
 
 ## Scene/Prefab Changes Required To Use New Systems
@@ -101,12 +106,24 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `FeastRing` to the player prefab with a trigger collider (1.5 radius); it auto-assigns owner from the player `NetworkObject`.
 - Add `MinionOwner` and `FoodCarrier` to minion prefabs if you want them to pick up and deliver food.
 - Add `MinionForageAgent` to minion prefabs to allow server-directed food foraging.
+- Add `MinionGatherer` to Harvester/Scout prefabs to enable resource harvesting/stealing.
+- Add `ResourceNode` objects to the scene (NetworkObject) and set `maxEnergy`, `respawnSeconds`, and `autoAssignOwner` as needed.
+- Add `ResourceDeposit` objects (trigger + NetworkObject) near each base so harvesters can deposit ATP.
 - Add `ForageModeController` to the player prefab to control Protect/Balanced/Max Forage modes.
 - Add `ForageModeUI` to your HUD and wire its three buttons/highlights to change forage mode while sleeping.
 - Add `FeastCounterUI` to your HUD if you want to display stored feast piles.
 - Add `MinionStats` to minion prefabs to set per-unit damage/speed/attack range and targeting (e.g., Brute = StructuresFirst).
+- For Spewer-like AoE, enable `MinionStats.useAoeAttack` and tune `aoeDamage/aoeRadius/aoeThreshold`.
+- For Acolyte-like healing, enable `MinionStats.canHealAllies` and tune `healAmount/interval/range/threshold`.
 - Add `BuffReceiver` to minion prefabs if you want Rally to affect their move/attack speed.
+- Sleeping Gerfunklet auto-forms a protect ring: non-foraging minions guard around the player and engage nearby enemies.
 - Add `BuildableInstance` to buildable prefabs and set the corresponding `CardDefinition.isBuildable = true` and `maxActive` cap.
+- Add `BuildableHealth` to buildable prefabs so minions and Boulder Pitch can damage/destroy them.
+- Flame Siphon/Brazier: add `BuildableAuraDamage` and tune radius/damage/tick.
+- Obelisk Turret: add `BuildableTurret` and tune range/damage/interval.
+- Rally Banner: add `BuildableRallyAura` and tune radius/move/attack buffs.
+- Food Cache: add `BuildableFoodCache` and assign FoodPile prefabs (small/medium/big).
+- Ward Totem: add `WardTotem` to block enemy placement within its radius (DeploymentRules handles it).
 - Add `Barricade` to barricade prefabs if you want Stomp to break them.
 - Add `FoodDropper` to minions/buildables/crates to spawn food piles on death (assign small/medium/big `FoodPile` prefabs).
 - Add `FoodPile` prefabs (NetworkObject + trigger collider) to the scene to test delivery.
@@ -116,6 +133,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Add `SuperController` to the player prefab and assign a `SuperAbilityCatalog` with entries for Seismic Quake, Boulder Pitch, and Gorge.
 - Add `KnockbackReceiver` to the player prefab to allow Seismic Quake knockback.
 - Add a `BoulderPitchProjectile` prefab with `NetworkObject` + `NetworkTransform`, and assign it to your Super definition asset.
+- Assign optional `impactFxPrefab` on thrown objects (Millstone Head, Throw targets, Boulder Pitch) if you want hit feedback.
 - Add `SuperUI` to your HUD, and wire its `chargeBar`, `chargeText`, and `superButton` (optional) to show/activate Supers.
 - Add an input action named `Super` to the Player action map if you want to trigger Supers.
 - Add an input action named `Ability5` to the Player action map to support the 5th Gerfunklet ability.

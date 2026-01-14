@@ -3,6 +3,10 @@ using UnityEngine;
 
 public class ThrownObject : NetworkBehaviour
 {
+    [Header("Impact FX (optional)")]
+    [SerializeField] private GameObject impactFxPrefab;
+    [SerializeField] private float impactFxLifeSeconds = 1.5f;
+
     private Vector3 _velocity;
     private float _gravity;
     private float _dieAt;
@@ -81,6 +85,8 @@ public class ThrownObject : NetworkBehaviour
 
     private void HandleHit(RaycastHit hit)
     {
+        SpawnImpactFxClientRpc(hit.point, hit.normal);
+
         var parry = hit.collider.GetComponentInParent<ParryReceiver>();
         if (parry != null && parry.IsParryActive)
         {
@@ -116,6 +122,16 @@ public class ThrownObject : NetworkBehaviour
         }
 
         SafeDespawn();
+    }
+
+    [ClientRpc]
+    private void SpawnImpactFxClientRpc(Vector3 position, Vector3 normal)
+    {
+        if (impactFxPrefab == null) return;
+        var rot = normal.sqrMagnitude > 0.001f ? Quaternion.LookRotation(normal) : Quaternion.identity;
+        var fx = Instantiate(impactFxPrefab, position, rot);
+        if (impactFxLifeSeconds > 0f)
+            Destroy(fx, impactFxLifeSeconds);
     }
 
     private void ApplyKnockback(Transform target)

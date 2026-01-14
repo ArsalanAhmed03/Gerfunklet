@@ -17,6 +17,8 @@ public class MinionForageAgent : NetworkBehaviour
     private bool _forageEnabled;
     private float _nextSearchTime;
 
+    public bool IsForaging => _forageEnabled;
+
     private void Awake()
     {
         _ai = GetComponent<MinionAI>();
@@ -65,7 +67,12 @@ public class MinionForageAgent : NetworkBehaviour
         _nextSearchTime = 0f;
 
         if (_ai != null)
+        {
             _ai.AttacksEnabled = !enabled;
+            _ai.AutoTargeting = !enabled;
+            if (enabled)
+                _ai.ClearGuard();
+        }
 
         if (enabled)
         {

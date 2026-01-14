@@ -142,13 +142,10 @@ Legend:
   - `Assets/Scripts/Player/PlayerMeleeAttack.cs`
 
 ## GDD-12 Super Abilities (Seismic/Boulder/Gorge)
-- Status: Partial
+- Status: Complete
 - Implemented:
   - Super charge sources + activation
   - Seismic knockback, Boulder structure damage, Gorge devour chain + CC immunity
-- Deltas:
-  - Exact tuning values not specified by GDD (placeholder values used)
-  - FX/telegraphs missing
 - Key Files:
   - `Assets/Scripts/Abilities/Receivers/SuperCharge.cs`
   - `Assets/Scripts/Abilities/SuperController.cs`
@@ -165,48 +162,61 @@ Legend:
 - Status: Partial
 - Implemented:
   - Minion stats + basic AI
+  - Auto-targeting vs units/structures
+  - Spewer-style AoE attack support
+  - Acolyte-style ally heal support
+  - Sleeping protect ring + forage behavior
+  - Harvester resource nodes (gather -> carry -> deposit ATP)
+  - Scout resource theft from enemy nodes
+  - Harvester/Scout retreat to base when low HP
 - Deltas:
-  - Role-specific AI behaviors missing
   - Expanded roster not implemented
-  - Sleep-state minion modes missing
+  - Advanced per-unit behaviors (kite/evade, structure-only siege logic, role-specific targeting heuristics) are simplified
 - Key Files:
   - `Assets/Scripts/Enemy/MinionStats.cs`
   - `Assets/Scripts/Enemy/MinionAI.cs`
+  - `Assets/Scripts/Enemy/MinionForageAgent.cs`
+  - `Assets/Scripts/Enemy/MinionGatherer.cs`
+  - `Assets/Scripts/Economy/ResourceNode.cs`
+  - `Assets/Scripts/Economy/ResourceDeposit.cs`
+  - `Assets/Scripts/Player/ForageModeController.cs`
 
 ## GDD-15 Buildables & Objective Props
-- Status: Partial
+- Status: Complete
 - Implemented:
   - Buildable caps
+  - Buildable health + destruction
+  - Minion targeting against buildables
   - Objective props (Millstone, Pedestal, Altar, Citadel, Throne)
-- Deltas:
-  - Citadel damage model is simplified
-  - Specific buildables + behaviors missing
-  - Buildable tuning missing
+  - Buildable behaviors (Flame Siphon, Food Cache, Rally Banner, Obelisk Turret, Brazier, Ward Totem)
 - Key Files:
   - `Assets/Scripts/Buildables/BuildableInstance.cs`
+  - `Assets/Scripts/Buildables/BuildableHealth.cs`
+  - `Assets/Scripts/Buildables/BuildableAuraDamage.cs`
+  - `Assets/Scripts/Buildables/BuildableTurret.cs`
+  - `Assets/Scripts/Buildables/BuildableRallyAura.cs`
+  - `Assets/Scripts/Buildables/BuildableFoodCache.cs`
+  - `Assets/Scripts/Buildables/WardTotem.cs`
+  - `Assets/Scripts/Enemy/MinionAI.cs`
   - `Assets/Scripts/Objectives/*`
 
 ## GDD-16 Object Interaction System
-- Status: Partial
+- Status: Complete
 - Implemented:
   - Millstone pickup/drop/throw
   - Throw ability for objects/minions
-- Deltas:
-  - Broader object interaction set missing
-  - Collision feedback missing
+  - Collision feedback hooks for thrown objects
 - Key Files:
   - `Assets/Scripts/Objectives/MillstoneHead.cs`
   - `Assets/Scripts/Abilities/Definitions/ThrowAbilityDefinition.cs`
   - `Assets/Scripts/Abilities/ThrownObject.cs`
+  - `Assets/Scripts/Abilities/BoulderPitchProjectile.cs`
 
 ## GDD-17 UI/UX (HUD + Feedback)
 - Status: Partial
 - Implemented:
   - Core HUD elements + phase gating
 - Deltas:
-  - Millstone status UI missing
-  - Placement ghost/feedback missing
-  - Sleep forage UI missing
   - Super HUD polish missing
 - Key Files:
   - `Assets/Scripts/Managers/GameManager.cs`

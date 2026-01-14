@@ -6,6 +6,8 @@ public class BoulderPitchProjectile : NetworkBehaviour
     [SerializeField] private float gravity = 25f;
     [SerializeField] private float lifeSeconds = 4f;
     [SerializeField] private float hitRadius = 0.4f;
+    [SerializeField] private GameObject impactFxPrefab;
+    [SerializeField] private float impactFxLifeSeconds = 1.5f;
 
     private Vector3 _velocity;
     private float _dieAt;
@@ -37,18 +39,28 @@ public class BoulderPitchProjectile : NetworkBehaviour
 
         if (dist > 0f)
         {
-            if (Physics.SphereCast(start, hitRadius, delta.normalized, out RaycastHit hit, dist, _hitMask, QueryTriggerInteraction.Ignore))
-            {
-                var hitNetObj = hit.collider.GetComponentInParent<NetworkObject>();
-                if (hitNetObj != null && hitNetObj.OwnerClientId == _ownerClientId)
+                if (Physics.SphereCast(start, hitRadius, delta.normalized, out RaycastHit hit, dist, _hitMask, QueryTriggerInteraction.Ignore))
                 {
-                    transform.position = start + delta;
+                    var hitNetObj = hit.collider.GetComponentInParent<NetworkObject>();
+                    if (hitNetObj != null && hitNetObj.OwnerClientId == _ownerClientId)
+                    {
+                        transform.position = start + delta;
                 }
                 else
                 {
+                    SpawnImpactFxClientRpc(hit.point, hit.normal);
+
                     var citadel = hit.collider.GetComponentInParent<CitadelHealth>();
                     if (citadel != null && _damageToStructures > 0)
                         citadel.ApplyDamageServer(_damageToStructures);
+
+                    var buildable = hit.collider.GetComponentInParent<BuildableHealth>();
+                    if (buildable != null && _damageToStructures > 0)
+                    {
+                        var owner = hit.collider.GetComponentInParent<BuildableInstance>();
+                        if (owner == null || owner.OwnerClientId != _ownerClientId)
+                            buildable.ApplyDamageServer(_damageToStructures);
+                    }
 
                     var stats = hit.collider.GetComponentInParent<PlayerStatsManager>();
                     if (stats != null && _damageToPlayers > 0)
@@ -77,5 +89,15 @@ public class BoulderPitchProjectile : NetworkBehaviour
             nob.Despawn();
         else
             Destroy(gameObject);
+    }
+
+    [ClientRpc]
+    private void SpawnImpactFxClientRpc(Vector3 position, Vector3 normal)
+    {
+        if (impactFxPrefab == null) return;
+        var rot = normal.sqrMagnitude > 0.001f ? Quaternion.LookRotation(normal) : Quaternion.identity;
+        var fx = Instantiate(impactFxPrefab, position, rot);
+        if (impactFxLifeSeconds > 0f)
+            Destroy(fx, impactFxLifeSeconds);
     }
 }

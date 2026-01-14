@@ -47,6 +47,17 @@ public class DeploymentRules : NetworkBehaviour
 
     public bool IsPlacementValid(Vector3 position, out string reason)
     {
+        ulong ownerId = ulong.MaxValue;
+        var no = GetComponent<NetworkObject>();
+        if (no != null)
+            ownerId = no.OwnerClientId;
+
+        if (ownerId != ulong.MaxValue && WardTotem.IsBlockedForOwner(ownerId, position))
+        {
+            reason = "blocked by ward totem";
+            return false;
+        }
+
         var anchor = GetAnchorPositionInternal(out bool forwardUnlocked);
         float radius = forwardUnlocked ? forwardDeployRadius : baseDeployRadius;
 
