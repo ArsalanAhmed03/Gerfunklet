@@ -9,19 +9,32 @@ public class GameManager : MonoBehaviour
     [Header("UI")]
     public Slider healthBar;
     public Slider staminaBar;
+    public GameObject sleepingIndicator;
+    public GameObject lowStaminaIndicator;
 
-    [Header("Objective UI")]
-    public Slider dangerCaptureBar;      // enemy capturing my zone
-    public Slider myCaptureBar;          // me capturing enemy zone
-    public TextMeshProUGUI captureStateText;
+    [Header("Gameplay UI Roots")]
+    [SerializeField] private GameObject controlsRoot;
 
-    [Header("Objective Zones")]
-    public ObjectiveZone zoneA;
-    public ObjectiveZone zoneB;
+    [Header("Citadel/Throne UI")]
+    public Slider enemyCitadelBar;
+    public TextMeshProUGUI enemyCitadelText;
+    public Slider throneCaptureBar;
+    public TextMeshProUGUI throneCaptureText;
+
+    [Header("Citadel/Throne Objects")]
+    public CitadelHealth citadelA;
+    public CitadelHealth citadelB;
+    public ThroneCapture throneA;
+    public ThroneCapture throneB;
 
     [Header("Optional Match UI")]
     [SerializeField] private TextMeshProUGUI statusText;      // "Waiting / Countdown / Playing / Overtime / Ended"
     [SerializeField] private TextMeshProUGUI endText;         // Final match result (YOU WIN / YOU LOSE / DRAW)
+
+    [Header("Results UI (Match End)")]
+    [SerializeField] private GameObject resultsRoot;
+    [SerializeField] private TextMeshProUGUI rewardsText;     // "Rewards: 100%" / "Rewards: 25%"
+    [SerializeField] private Button rematchButton;
 
     [Header("Round UI (Optional)")]
     [SerializeField] private TextMeshProUGUI roundText;       // "Round 1"
@@ -47,6 +60,9 @@ public class GameManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+
+        if (rematchButton != null)
+            rematchButton.onClick.AddListener(OnRematchClicked);
     }
 
     private void OnDestroy()
@@ -87,6 +103,8 @@ public class GameManager : MonoBehaviour
         // Optional: clear round result so UI doesn’t conflict
         if (roundResultText != null)
             roundResultText.text = "";
+
+        ShowResultsUI(iWon, isDraw: false);
     }
 
     // New: use this for round-end UI (recommended)
@@ -96,6 +114,8 @@ public class GameManager : MonoBehaviour
 
         if (isDraw) roundResultText.text = "ROUND DRAW";
         else roundResultText.text = iWon ? "ROUND WON" : "ROUND LOST";
+
+        SetActive(resultsRoot, false);
     }
 
     // New: use this for match-end UI with draw support
@@ -108,6 +128,8 @@ public class GameManager : MonoBehaviour
 
         if (roundResultText != null)
             roundResultText.text = "";
+
+        ShowResultsUI(iWon, isDraw);
     }
 
     private void TryBindMatchManager()
@@ -140,17 +162,86 @@ public class GameManager : MonoBehaviour
     private void HandlePhaseChanged(MatchManager.MatchPhase phase)
     {
         if (statusText != null)
-            statusText.text = phase.ToString();
+        {
+            statusText.text = phase switch
+            {
+                MatchManager.MatchPhase.LoadoutSelect => "Ready/Mulligan",
+                _ => phase.ToString()
+            };
+        }
+
+        UpdateGameplayUiForPhase(phase);
+
+        if (phase != MatchManager.MatchPhase.MatchEnded)
+            SetActive(resultsRoot, false);
+    }
+
+    private void UpdateGameplayUiForPhase(MatchManager.MatchPhase phase)
+    {
+        bool gameplay = phase == MatchManager.MatchPhase.Playing || phase == MatchManager.MatchPhase.Overtime;
+
+        SetActive(controlsRoot, gameplay);
+        SetActive(healthBar != null ? healthBar.gameObject : null, gameplay);
+        SetActive(staminaBar != null ? staminaBar.gameObject : null, gameplay);
+        SetActive(sleepingIndicator, gameplay);
+        SetActive(lowStaminaIndicator, gameplay);
+
+        SetActive(enemyCitadelBar != null ? enemyCitadelBar.gameObject : null, gameplay);
+        SetActive(enemyCitadelText != null ? enemyCitadelText.gameObject : null, gameplay);
+        SetActive(throneCaptureBar != null ? throneCaptureBar.gameObject : null, gameplay);
+        SetActive(throneCaptureText != null ? throneCaptureText.gameObject : null, gameplay);
+    }
+
+    private void ShowResultsUI(bool iWon, bool isDraw)
+    {
+        SetActive(resultsRoot, true);
+
+        if (rewardsText == null) return;
+        if (isDraw)
+        {
+            rewardsText.text = "";
+            return;
+        }
+
+        rewardsText.text = iWon ? "Rewards: 100% of table" : "Rewards: 25% of winner";
+    }
+
+    private void OnRematchClicked()
+    {
+        if (MatchManager.Instance == null) return;
+        MatchManager.Instance.RequestRematchServerRpc();
+    }
+
+    private void SetActive(GameObject obj, bool active)
+    {
+        if (obj == null) return;
+        obj.SetActive(active);
     }
 
     private void HandleRoundChanged(int round)
     {
+        if (_match != null && !_match.EnableRounds)
+        {
+            SetActive(roundText != null ? roundText.gameObject : null, false);
+            SetActive(scoreText != null ? scoreText.gameObject : null, false);
+            SetActive(roundResultText != null ? roundResultText.gameObject : null, false);
+            return;
+        }
+
         if (roundText != null)
             roundText.text = $"Round {round}";
     }
 
     private void HandleScoreChanged(int playerAWins, int playerBWins)
     {
+        if (_match != null && !_match.EnableRounds)
+        {
+            SetActive(roundText != null ? roundText.gameObject : null, false);
+            SetActive(scoreText != null ? scoreText.gameObject : null, false);
+            SetActive(roundResultText != null ? roundResultText.gameObject : null, false);
+            return;
+        }
+
         if (scoreText != null)
         {
             // Score uses PlayerAWins/PlayerBWins based on join order (clients[0] vs clients[1] on server).

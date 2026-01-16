@@ -86,6 +86,11 @@ public class ObjectiveZone : NetworkBehaviour
         TryAutoAssignOwner();
 
         if (MatchManager.Instance == null) return;
+        if (!MatchManager.Instance.EnableObjectiveZones)
+        {
+            ResetChannelServer();
+            return;
+        }
 
         int phase = MatchManager.Instance.Phase.Value;
         bool isLive =

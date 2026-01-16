@@ -14,6 +14,9 @@ public class MatchManager : NetworkBehaviour
 
     public float LoadoutSelectSeconds => loadoutSelectSeconds;
     public bool IsTeamAssignmentReady => PlayerAClientId.Value != ulong.MaxValue && PlayerBClientId.Value != ulong.MaxValue;
+    public bool EnableObjectiveZones => enableObjectiveZones;
+    public bool EnableAbilityLoadoutUI => enableAbilityLoadoutUI;
+    public bool EnableRounds => enableRounds;
 
     // - RoundEnded = a single round finished, we reset arena and start next round
     // - MatchEnded = match is fully finished (best-of), stays ended until rematch requested
@@ -34,12 +37,25 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float loadoutSelectSeconds = 20f;
 
     [Header("Round / Match Rules")]
-    [SerializeField] private int roundsToWin = 2;             // Best-of-3 => first to 2
+    [SerializeField] private bool enableRounds = false;
+    [SerializeField] private int roundsToWin = 1;
     [SerializeField] private float endScreenSeconds = 3f;      // delay after round/match result shown
     [SerializeField] private float overtimeLabelSeconds = 2f;  // optional UI use
+    [SerializeField] private float overtimeSeconds = 60f;
+    [SerializeField] private bool enableDeathEndsRound = false;
+    [SerializeField] private bool enableObjectiveZones = false;
+    [SerializeField] private bool enableAbilityLoadoutUI = false;
+    [SerializeField] private AbilityId[] defaultAbilityLoadout = new AbilityId[5]
+    {
+        AbilityId.Stomp,
+        AbilityId.Devour,
+        AbilityId.Rally,
+        AbilityId.Parry,
+        AbilityId.Throw
+    };
 
     [Header("Match Timer")]
-    [SerializeField] private float matchSeconds = 180f;
+    [SerializeField] private float matchSeconds = 210f;
 
     [Header("Ability Database (assign all defs here)")]
     [SerializeField] private AbilityDefinition[] allAbilityDefs;
@@ -65,6 +81,12 @@ public class MatchManager : NetworkBehaviour
     );
 
     public NetworkVariable<float> MatchRemaining = new NetworkVariable<float>(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    public NetworkVariable<float> OvertimeRemaining = new NetworkVariable<float>(
         0f,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
@@ -202,6 +224,10 @@ public class MatchManager : NetworkBehaviour
             if (IsReadyPlayerCountMet())
                 EnterLoadoutSelectServer();
         }
+        else if (phase == MatchPhase.LoadoutSelect)
+        {
+            TryAutoLockLoadoutsServer();
+        }
 
         // Match timer only ticks while live
         if (phase == MatchPhase.Playing)
@@ -211,6 +237,21 @@ public class MatchManager : NetworkBehaviour
             {
                 MatchRemaining.Value = 0f;
                 Phase.Value = (int)MatchPhase.Overtime;
+                OvertimeRemaining.Value = overtimeSeconds;
+            }
+        }
+
+        phase = (MatchPhase)Phase.Value;
+        if (phase == MatchPhase.Overtime)
+        {
+            if (OvertimeRemaining.Value > 0f)
+            {
+                OvertimeRemaining.Value -= Time.deltaTime;
+                if (OvertimeRemaining.Value <= 0f)
+                {
+                    OvertimeRemaining.Value = 0f;
+                    EndRoundServer(ulong.MaxValue);
+                }
             }
         }
     }
@@ -288,6 +329,7 @@ public class MatchManager : NetworkBehaviour
         _playerLoadouts?.Clear();
         AssignTeamsIfNeededServer();
         SetLoadoutEndTimeServer();
+        ResetAllHandsForMatchServer();
 
         // Ensure gameplay is disabled
         SetGameplayEnabledClientRpc(false);
@@ -343,6 +385,7 @@ public class MatchManager : NetworkBehaviour
         _countdownStarted = true;
 
         LoadoutEndsAtServerTime.Value = 0d;
+        OvertimeRemaining.Value = 0f;
         Phase.Value = (int)MatchPhase.Countdown;
 
         MatchRemaining.Value = matchSeconds;
@@ -371,6 +414,7 @@ public class MatchManager : NetworkBehaviour
 
         var phase = (MatchPhase)Phase.Value;
         if (phase != MatchPhase.Playing && phase != MatchPhase.Overtime) return;
+        if (!enableDeathEndsRound) return;
 
         ulong winner = GetOtherClient(deadClientId);
         EndRoundServer(winner);
@@ -457,6 +501,13 @@ public class MatchManager : NetworkBehaviour
     {
         if (!IsServer) return;
         if (_roundEnding) return;
+
+        if (!enableRounds)
+        {
+            EndMatchImmediateServer(winnerClientId);
+            return;
+        }
+
         _roundEnding = true;
 
         SetGameplayEnabledClientRpc(false);
@@ -506,6 +557,64 @@ public class MatchManager : NetworkBehaviour
 
         if (winnerClientId == a) PlayerAWins.Value++;
         else if (winnerClientId == b) PlayerBWins.Value++;
+    }
+
+    private void TryAutoLockLoadoutsServer()
+    {
+        if (!IsServer) return;
+        if (LoadoutsLocked.Value) return;
+        if (LoadoutEndsAtServerTime.Value <= 0d) return;
+
+        double now = NetworkManager.Singleton != null
+            ? NetworkManager.Singleton.ServerTime.Time
+            : Time.timeAsDouble;
+
+        if (now < LoadoutEndsAtServerTime.Value) return;
+
+        LoadoutsLocked.Value = true;
+
+        _countdownStarted = false;
+        if (_countdownRoutine != null) StopCoroutine(_countdownRoutine);
+        _countdownRoutine = StartCoroutine(CountdownRoutine());
+    }
+
+    public void ApplyDefaultLoadoutServer(GameObject playerGO)
+    {
+        if (!IsServer) return;
+        if (playerGO == null) return;
+
+        var runner = playerGO.GetComponent<AbilityRunner>();
+        if (runner == null) return;
+
+        if (defaultAbilityLoadout == null || defaultAbilityLoadout.Length != 5)
+            return;
+
+        runner.ApplyLoadoutServer(defaultAbilityLoadout);
+        runner.ResetForNewRoundServerRpc();
+
+        var super = playerGO.GetComponent<SuperCharge>();
+        if (super != null)
+            super.ResetForNewRoundServerRpc();
+    }
+
+    public void EndMatchImmediateServer(ulong winnerClientId)
+    {
+        if (!IsServer) return;
+        if (_roundEnding) return;
+
+        _roundEnding = true;
+        SetGameplayEnabledClientRpc(false);
+
+        PlayerAWins.Value = 0;
+        PlayerBWins.Value = 0;
+        if (winnerClientId == PlayerAClientId.Value) PlayerAWins.Value = roundsToWin;
+        else if (winnerClientId == PlayerBClientId.Value) PlayerBWins.Value = roundsToWin;
+
+        Phase.Value = (int)MatchPhase.MatchEnded;
+        WinnerClientId.Value = winnerClientId;
+
+        ShowEndScreenClientRpc(winnerClientId, EndScreenKind.Match);
+        StartCoroutine(MatchEndCooldownRoutine());
     }
 
     [ClientRpc]
@@ -564,6 +673,7 @@ public class MatchManager : NetworkBehaviour
             LoadoutsLocked.Value = false;
             _playerLoadouts?.Clear();
             SetLoadoutEndTimeServer();
+            ResetAllHandsForMatchServer();
 
             Phase.Value = (int)MatchPhase.LoadoutSelect;
         }
@@ -577,8 +687,10 @@ public class MatchManager : NetworkBehaviour
         }
 
         DespawnAllMinionsServer();
+        DespawnAllBuildablesServer();
         ResetAllTilesServer();
         ResetAllZonesServer();
+        ResetAllMillstonesServer();
 
         if (LocalSpawner.Instance != null)
             LocalSpawner.Instance.RespawnAllPlayersAtSpawnsServer();
@@ -598,10 +710,29 @@ public class MatchManager : NetworkBehaviour
         PlayerAWins.Value = 0;
         PlayerBWins.Value = 0;
         WinnerClientId.Value = ulong.MaxValue;
+        OvertimeRemaining.Value = 0f;
 
         _roundEnding = false;
         _pendingWinner = ulong.MaxValue;
         _pendingWinnerTime = -1;
+    }
+
+    private void ResetAllHandsForMatchServer()
+    {
+        if (!IsServer) return;
+        if (LocalSpawner.Instance == null) return;
+        if (NetworkManager.Singleton == null) return;
+
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            var playerObj = LocalSpawner.Instance.GetPlayerForClient(client.ClientId);
+            if (playerObj == null) continue;
+
+            var hand = playerObj.GetComponent<CardHand>();
+            
+            if (hand != null)
+                hand.ResetForNewMatchServer();
+        }
     }
 
     private void DespawnAllMinionsServer()
@@ -616,6 +747,22 @@ public class MatchManager : NetworkBehaviour
                 no.Despawn(true);
             else
                 Destroy(m);
+        }
+    }
+
+    private void DespawnAllBuildablesServer()
+    {
+        if (!IsServer) return;
+
+        var buildables = FindObjectsOfType<BuildableInstance>(true);
+        foreach (var b in buildables)
+        {
+            if (b == null) continue;
+            var no = b.GetComponent<NetworkObject>();
+            if (no != null && no.IsSpawned)
+                no.Despawn(true);
+            else
+                Destroy(b.gameObject);
         }
     }
 
@@ -641,6 +788,15 @@ public class MatchManager : NetworkBehaviour
             t.ResetTileForNewRoundServer();
     }
 
+    private void ResetAllMillstonesServer()
+    {
+        if (!IsServer) return;
+
+        var heads = FindObjectsOfType<MillstoneHead>(true);
+        foreach (var h in heads)
+            h.ResetToHomeServer();
+    }
+
     private void TryStartCountdown()
     {
         if (_countdownStarted) return;
@@ -659,7 +815,13 @@ public class MatchManager : NetworkBehaviour
 
     private bool IsAllowedAbility(AbilityId id)
     {
-        // Minimal rule: only abilities that exist in the database are allowed
+        bool gddAbility = id == AbilityId.Stomp ||
+                          id == AbilityId.Rally ||
+                          id == AbilityId.Parry ||
+                          id == AbilityId.Throw ||
+                          id == AbilityId.Devour;
+
+        if (!gddAbility) return false;
         return _defById != null && _defById.ContainsKey(id);
     }
 
@@ -719,7 +881,7 @@ public class MatchManager : NetworkBehaviour
 
         if (phase != MatchPhase.LoadoutSelect) return;
         if (LoadoutsLocked.Value) return;
-        if (chosenAbilities == null || chosenAbilities.Length != 4) return;
+        if (chosenAbilities == null || chosenAbilities.Length != 5) return;
 
         var seen = new HashSet<AbilityId>();
         for (int i = 0; i < chosenAbilities.Length; i++)
@@ -732,7 +894,7 @@ public class MatchManager : NetworkBehaviour
             _playerLoadouts = new Dictionary<ulong, AbilityId[]>();
 
         _playerLoadouts[sender] = chosenAbilities;
-        Debug.Log($"[Loadout][SERVER] chosen for {sender}: {chosenAbilities[0]},{chosenAbilities[1]},{chosenAbilities[2]},{chosenAbilities[3]}");
+        Debug.Log($"[Loadout][SERVER] chosen for {sender}: {chosenAbilities[0]},{chosenAbilities[1]},{chosenAbilities[2]},{chosenAbilities[3]},{chosenAbilities[4]}");
 
 
         Debug.Log($"[Loadout][SERVER] Stored loadout for {sender}. totalSubmitted={_playerLoadouts.Count}/{requiredPlayers}");
@@ -743,9 +905,9 @@ public class MatchManager : NetworkBehaviour
 
         if (TryGetPlayerAbilityRunner(sender, out var runner))
         {
-            Debug.Log($"[Loadout][SERVER] Found runner for {sender}. Before apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value}");
+            Debug.Log($"[Loadout][SERVER] Found runner for {sender}. Before apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value},{runner.Slot4.Value}");
             runner.ApplyLoadoutServer(chosenAbilities);
-            Debug.Log($"[Loadout][SERVER] After apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value}");
+            Debug.Log($"[Loadout][SERVER] After apply: {runner.Slot0.Value},{runner.Slot1.Value},{runner.Slot2.Value},{runner.Slot3.Value},{runner.Slot4.Value}");
             runner.ResetForNewRoundServerRpc();
 
         }

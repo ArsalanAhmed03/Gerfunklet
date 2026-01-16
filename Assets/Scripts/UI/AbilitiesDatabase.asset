@@ -25,6 +25,6 @@ MonoBehaviour:
   - id: 3
     definition: {fileID: 11400000, guid: c23298fcc90e9554cb7fb0da1e8ad462, type: 2}
     icon: {fileID: 21300000, guid: b841476754a060a4bb906b9c233ddf0e, type: 3}
-  - id: 4
-    definition: {fileID: 11400000, guid: 4338581cdcc91604a9ab0ed4b59b7506, type: 2}
-    icon: {fileID: 21300000, guid: 015bc7388825ee147be0de9d7eb1ec34, type: 3}
+  - id: 5
+    definition: {fileID: 11400000, guid: 48cd06767a66dd44c9be2322e0f424f5, type: 2}
+    icon: {fileID: 21300000, guid: b841476754a060a4bb906b9c233ddf0e, type: 3}

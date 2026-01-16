@@ -4,12 +4,11 @@ using System.Collections;
 
 public class ObjectiveUIController : MonoBehaviour
 {
-    private ObjectiveZone _zoneA;
-    private ObjectiveZone _zoneB;
-    private ObjectiveZone _myZone;
-    private ObjectiveZone _enemyZone;
+    private CitadelHealth _citadelA;
+    private CitadelHealth _citadelB;
+    private ThroneCapture _throneA;
+    private ThroneCapture _throneB;
     private MatchManager _match;
-    private bool _zonesBound;
     private bool _matchBound;
     private Coroutine _bindRoutine;
 
@@ -26,8 +25,8 @@ public class ObjectiveUIController : MonoBehaviour
             _bindRoutine = null;
         }
 
-        UnbindZones();
         UnbindMatch();
+        UnbindCitadelThrone();
     }
 
     private IEnumerator BindWhenReady()
@@ -43,67 +42,90 @@ public class ObjectiveUIController : MonoBehaviour
         if (NetworkManager.Singleton == null) return false;
 
         BindMatch();
-        BindZones(gm.zoneA, gm.zoneB);
+        BindCitadelThrone(gm.citadelA, gm.citadelB, gm.throneA, gm.throneB);
 
-        RefreshZoneUI();
+        RefreshCitadelThroneUI();
         UpdateMatchTimer();
-        return _zonesBound && _matchBound;
+        return _matchBound;
     }
 
-    private void BindZones(ObjectiveZone zoneA, ObjectiveZone zoneB)
+    private void BindCitadelThrone(CitadelHealth citadelA, CitadelHealth citadelB, ThroneCapture throneA, ThroneCapture throneB)
     {
-        if (_zonesBound && _zoneA == zoneA && _zoneB == zoneB) return;
+        UnbindCitadelThrone();
 
-        UnbindZones();
+        _citadelA = citadelA;
+        _citadelB = citadelB;
+        _throneA = throneA;
+        _throneB = throneB;
 
-        _zoneA = zoneA;
-        _zoneB = zoneB;
-
-        if (_zoneA != null) SubscribeZone(_zoneA);
-        if (_zoneB != null) SubscribeZone(_zoneB);
-
-        _zonesBound = _zoneA != null && _zoneB != null;
+        if (_citadelA != null) SubscribeCitadel(_citadelA);
+        if (_citadelB != null) SubscribeCitadel(_citadelB);
+        if (_throneA != null) SubscribeThrone(_throneA);
+        if (_throneB != null) SubscribeThrone(_throneB);
     }
 
-    private void UnbindZones()
+    private void UnbindCitadelThrone()
     {
-        if (_zoneA != null) UnsubscribeZone(_zoneA);
-        if (_zoneB != null) UnsubscribeZone(_zoneB);
+        if (_citadelA != null) UnsubscribeCitadel(_citadelA);
+        if (_citadelB != null) UnsubscribeCitadel(_citadelB);
+        if (_throneA != null) UnsubscribeThrone(_throneA);
+        if (_throneB != null) UnsubscribeThrone(_throneB);
 
-        _zoneA = null;
-        _zoneB = null;
-        _myZone = null;
-        _enemyZone = null;
-        _zonesBound = false;
+        _citadelA = null;
+        _citadelB = null;
+        _throneA = null;
+        _throneB = null;
     }
 
-    private void SubscribeZone(ObjectiveZone zone)
+    private void SubscribeCitadel(CitadelHealth citadel)
     {
-        zone.ownerClientId.OnValueChanged += HandleOwnerChanged;
-        zone.progress01.OnValueChanged += HandleProgressChanged;
-        zone.contested.OnValueChanged += HandleContestedChanged;
+        citadel.health.OnValueChanged += HandleCitadelChanged;
+        citadel.destroyed.OnValueChanged += HandleCitadelDestroyed;
+        citadel.ownerClientId.OnValueChanged += HandleCitadelOwnerChanged;
     }
 
-    private void UnsubscribeZone(ObjectiveZone zone)
+    private void UnsubscribeCitadel(CitadelHealth citadel)
     {
-        zone.ownerClientId.OnValueChanged -= HandleOwnerChanged;
-        zone.progress01.OnValueChanged -= HandleProgressChanged;
-        zone.contested.OnValueChanged -= HandleContestedChanged;
+        citadel.health.OnValueChanged -= HandleCitadelChanged;
+        citadel.destroyed.OnValueChanged -= HandleCitadelDestroyed;
+        citadel.ownerClientId.OnValueChanged -= HandleCitadelOwnerChanged;
     }
 
-    private void HandleOwnerChanged(ulong oldValue, ulong newValue)
+    private void SubscribeThrone(ThroneCapture throne)
     {
-        RefreshZoneUI();
+        throne.progress01.OnValueChanged += HandleThroneProgressChanged;
+        throne.ownerClientId.OnValueChanged += HandleThroneOwnerChanged;
     }
 
-    private void HandleProgressChanged(float oldValue, float newValue)
+    private void UnsubscribeThrone(ThroneCapture throne)
     {
-        RefreshZoneUI();
+        throne.progress01.OnValueChanged -= HandleThroneProgressChanged;
+        throne.ownerClientId.OnValueChanged -= HandleThroneOwnerChanged;
     }
 
-    private void HandleContestedChanged(bool oldValue, bool newValue)
+    private void HandleCitadelChanged(int oldValue, int newValue)
     {
-        RefreshZoneUI();
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleCitadelDestroyed(bool oldValue, bool newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleCitadelOwnerChanged(ulong oldValue, ulong newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleThroneProgressChanged(float oldValue, float newValue)
+    {
+        RefreshCitadelThroneUI();
+    }
+
+    private void HandleThroneOwnerChanged(ulong oldValue, ulong newValue)
+    {
+        RefreshCitadelThroneUI();
     }
 
     private void BindMatch()
@@ -114,6 +136,8 @@ public class ObjectiveUIController : MonoBehaviour
         _match = MatchManager.Instance;
         _match.OnPhaseChanged += HandlePhaseChanged;
         _match.MatchRemaining.OnValueChanged += HandleMatchRemainingChanged;
+        _match.OvertimeRemaining.OnValueChanged += HandleOvertimeRemainingChanged;
+        _match.LoadoutEndsAtServerTime.OnValueChanged += HandleLoadoutEndChanged;
         _matchBound = true;
     }
 
@@ -123,6 +147,8 @@ public class ObjectiveUIController : MonoBehaviour
 
         _match.OnPhaseChanged -= HandlePhaseChanged;
         _match.MatchRemaining.OnValueChanged -= HandleMatchRemainingChanged;
+        _match.OvertimeRemaining.OnValueChanged -= HandleOvertimeRemainingChanged;
+        _match.LoadoutEndsAtServerTime.OnValueChanged -= HandleLoadoutEndChanged;
         _match = null;
         _matchBound = false;
     }
@@ -137,64 +163,87 @@ public class ObjectiveUIController : MonoBehaviour
         UpdateMatchTimer();
     }
 
-    private void RefreshZoneUI()
+    private void HandleOvertimeRemainingChanged(float oldValue, float newValue)
+    {
+        UpdateMatchTimer();
+    }
+
+    private void HandleLoadoutEndChanged(double oldValue, double newValue)
+    {
+        UpdateMatchTimer();
+    }
+
+    private void Update()
+    {
+        if (_match == null) return;
+
+        var phase = (MatchManager.MatchPhase)_match.Phase.Value;
+        if (phase == MatchManager.MatchPhase.LoadoutSelect)
+            UpdateMatchTimer();
+    }
+
+    private void RefreshCitadelThroneUI()
     {
         var gm = GameManager.Instance;
         if (gm == null) return;
         if (NetworkManager.Singleton == null) return;
 
         ulong myId = NetworkManager.Singleton.LocalClientId;
-        _myZone = null;
-        _enemyZone = null;
 
-        if (_zoneA != null && _zoneA.OwnerClientId != ulong.MaxValue)
+        CitadelHealth enemyCitadel = null;
+        if (_citadelA != null && _citadelA.ownerClientId.Value != myId) enemyCitadel = _citadelA;
+        if (_citadelB != null && _citadelB.ownerClientId.Value != myId) enemyCitadel = _citadelB;
+
+        if (enemyCitadel != null && enemyCitadel.ownerClientId.Value != ulong.MaxValue)
         {
-            if (_zoneA.OwnerClientId == myId) _myZone = _zoneA;
-            else _enemyZone = _zoneA;
+            float max = Mathf.Max(1, enemyCitadel.MaxHealth);
+            float value = enemyCitadel.destroyed.Value ? 0 : enemyCitadel.health.Value;
+
+            if (gm.enemyCitadelBar != null)
+            {
+                gm.enemyCitadelBar.maxValue = max;
+                gm.enemyCitadelBar.value = value;
+                gm.enemyCitadelBar.gameObject.SetActive(true);
+            }
+
+            if (gm.enemyCitadelText != null)
+            {
+                gm.enemyCitadelText.text = enemyCitadel.destroyed.Value
+                    ? "ENEMY CITADEL DESTROYED"
+                    : $"ENEMY CITADEL {value:0}/{max:0}";
+                gm.enemyCitadelText.gameObject.SetActive(true);
+            }
+        }
+        else
+        {
+            if (gm.enemyCitadelBar != null) gm.enemyCitadelBar.gameObject.SetActive(false);
+            if (gm.enemyCitadelText != null) gm.enemyCitadelText.gameObject.SetActive(false);
         }
 
-        if (_zoneB != null && _zoneB.OwnerClientId != ulong.MaxValue)
+        ThroneCapture activeThrone = null;
+        if (_throneA != null && _throneA.progress01.Value > 0f) activeThrone = _throneA;
+        if (_throneB != null && _throneB.progress01.Value > 0f) activeThrone = _throneB;
+
+        if (activeThrone != null)
         {
-            if (_zoneB.OwnerClientId == myId) _myZone = _zoneB;
-            else _enemyZone = _zoneB;
+            float value = activeThrone.progress01.Value;
+            if (gm.throneCaptureBar != null)
+            {
+                gm.throneCaptureBar.value = value;
+                gm.throneCaptureBar.gameObject.SetActive(true);
+            }
+
+            if (gm.throneCaptureText != null)
+            {
+                bool enemyThrone = activeThrone.ownerClientId.Value != myId;
+                gm.throneCaptureText.text = enemyThrone ? "CAPTURING ENEMY THRONE" : "ENEMY CAPTURING";
+                gm.throneCaptureText.gameObject.SetActive(true);
+            }
         }
-
-        if (_myZone == null || _enemyZone == null)
+        else
         {
-            if (gm.dangerCaptureBar != null) gm.dangerCaptureBar.gameObject.SetActive(false);
-            if (gm.myCaptureBar != null) gm.myCaptureBar.gameObject.SetActive(false);
-            if (gm.captureStateText != null) gm.captureStateText.gameObject.SetActive(false);
-            return;
-        }
-
-        float danger = _myZone.progress01.Value;
-        float myCap = _enemyZone.progress01.Value;
-
-        if (gm.dangerCaptureBar != null)
-        {
-            gm.dangerCaptureBar.value = danger;
-            gm.dangerCaptureBar.gameObject.SetActive(danger > 0f);
-        }
-
-        if (gm.myCaptureBar != null)
-        {
-            gm.myCaptureBar.value = myCap;
-            gm.myCaptureBar.gameObject.SetActive(myCap > 0f);
-        }
-
-        if (gm.captureStateText != null)
-        {
-            bool race = danger > 0f && myCap > 0f;
-            bool contested = _myZone.contested.Value || _enemyZone.contested.Value;
-
-            if (race)
-                gm.captureStateText.text = "RACE";
-            else if (contested)
-                gm.captureStateText.text = "CONTESTED";
-            else
-                gm.captureStateText.text = "";
-
-            gm.captureStateText.gameObject.SetActive(race || contested);
+            if (gm.throneCaptureBar != null) gm.throneCaptureBar.gameObject.SetActive(false);
+            if (gm.throneCaptureText != null) gm.throneCaptureText.gameObject.SetActive(false);
         }
     }
 
@@ -204,17 +253,40 @@ public class ObjectiveUIController : MonoBehaviour
         if (gm == null || gm.matchTimerText == null) return;
         if (_match == null) return;
 
-        if (_match.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
+        if (_match.Phase.Value == (int)MatchManager.MatchPhase.LoadoutSelect)
         {
-            gm.matchTimerText.text = "OVERTIME";
+            double endTime = _match.LoadoutEndsAtServerTime.Value;
+            double now = NetworkManager.Singleton != null
+                ? NetworkManager.Singleton.ServerTime.Time
+                : Time.timeAsDouble;
+
+            float remaining = endTime > 0d ? (float)(endTime - now) : _match.LoadoutSelectSeconds;
+            remaining = Mathf.Max(0f, remaining);
+
+            int seconds = Mathf.CeilToInt(remaining);
+            int mins = seconds / 60;
+            int secs = seconds % 60;
+            gm.matchTimerText.text = $"READY {mins:00}:{secs:00}";
             return;
         }
 
-        float t = Mathf.Max(0f, _match.MatchRemaining.Value);
-        int seconds = Mathf.CeilToInt(t);
-        int mins = seconds / 60;
-        int secs = seconds % 60;
+        if (_match.Phase.Value == (int)MatchManager.MatchPhase.Overtime)
+        {
+            float t = Mathf.Max(0f, _match.OvertimeRemaining.Value);
+            int seconds = Mathf.CeilToInt(t);
+            int mins = seconds / 60;
+            int secs = seconds % 60;
+            gm.matchTimerText.text = $"OT {mins:00}:{secs:00}";
+            return;
+        }
+        else
+        {
 
-        gm.matchTimerText.text = $"{mins:00}:{secs:00}";
+            float t = Mathf.Max(0f, _match.MatchRemaining.Value);
+            int seconds = Mathf.CeilToInt(t);
+            int mins = seconds / 60;
+            int secs = seconds % 60;
+            gm.matchTimerText.text = $"{mins:00}:{secs:00}";
+        }
     }
 }

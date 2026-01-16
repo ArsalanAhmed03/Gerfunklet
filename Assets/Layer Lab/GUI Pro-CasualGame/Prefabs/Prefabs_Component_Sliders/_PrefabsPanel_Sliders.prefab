@@ -5161,6 +5161,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Slider_Fusion_Demo
       objectReference: {fileID: 0}
+    - target: {fileID: 8508540292397367429, guid: af473151d4e5d4d71a87b3238fd9407b, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

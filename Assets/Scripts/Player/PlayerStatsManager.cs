@@ -7,19 +7,36 @@ using TMPro;
 public class PlayerStatsManager : NetworkBehaviour
 {
     [Header("Player Stats Configuration")]
-    [SerializeField] private int maxHealth = 100;
-    [SerializeField] private int maxStamina = 100;
+    [SerializeField] private int maxHealth = 5000;
+    [Header("Stamina (GDD defaults)")]
+    [SerializeField] private float maxStamina = 600f;
+    [SerializeField] private float activeDrainPercentPerSec = 0.40f;
+    [SerializeField] private float carryExtraDrainPercentPerSec = 0.5f;
+    [SerializeField] private float regenOnThronePerSec = 1.3f;
+    [SerializeField] private float regenOnGroundPerSec = 0.8f;
+    [SerializeField] private float underFirePenalty = 0.4f;
+    [SerializeField] private float underFireSeconds = 1.0f;
+    [SerializeField] private float manualRestMinPercent = 0.10f;
+    [SerializeField] private float autoWakePercent = 0.25f;
+    [SerializeField] private float sleepTransitionSeconds = 0.8f;
+    [SerializeField] private float lowStaminaPercent = 0.10f;
+    [SerializeField] private float safeEnemyRadius = 2.5f;
+    [SerializeField] private float safeEnemySeconds = 1.0f;
+    [SerializeField] private float throneRegenRadius = 2.5f;
+    [SerializeField] private LayerMask enemyCheckMask;
 
     [SerializeField] private int startingPoints = 0;
-
-    [SerializeField] private int stamina = 100;
 
     [Header("Debug")]
     [SerializeField] private bool debugMode = true;
 
+    [Header("Respawn (GDD)")]
+    [SerializeField] private float respawnSeconds = 8f;
+    [SerializeField] private Vector3 respawnOffset = Vector3.zero;
+
     // Network Variables - synchronized across all clients
     private NetworkVariable<int> health = new NetworkVariable<int>(
-    100,
+    5000,
     NetworkVariableReadPermission.Everyone,
     NetworkVariableWritePermission.Server
 );
@@ -36,9 +53,40 @@ public class PlayerStatsManager : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private NetworkVariable<float> stamina = new NetworkVariable<float>(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> isSleeping = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> isSleepTransitioning = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<int> wellFedStacks = new NetworkVariable<int>(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    [Header("Feast (GDD defaults)")]
+    [SerializeField] private int maxFeastConsumePiles = 5;
+    [SerializeField] private int wellFedMaxStacks = 5;
+    [SerializeField] private float wellFedRegenPerStack = 1.0f;
+    [SerializeField] private float wellFedDurationSeconds = 6f;
+
     // Events for UI and other systems to subscribe to
     public event Action<int, int> OnHealthChanged; // (newHealth, maxHealth)
     public event Action<int> OnPointsChanged; // (newPoints)
+    public event Action<float, float, bool> OnStaminaChanged; // (current, max, sleeping)
     public event Action OnPlayerDied;
     public event Action OnPlayerRespawned;
 
@@ -47,18 +95,40 @@ public class PlayerStatsManager : NetworkBehaviour
     public int MaxHealth => maxHealth;
     public int Points => points.Value;
     public bool IsAlive => isAlive.Value;
-
-
-    private float staminaTickTimer = 0f;
+    public float Stamina => stamina.Value;
+    public float MaxStamina => maxStamina;
+    public bool IsSleeping => isSleeping.Value || isSleepTransitioning.Value;
+    public bool IsSleepTransitioning => isSleepTransitioning.Value;
+    public int WellFedStacks => wellFedStacks.Value;
+    private float _lastDamageTime;
+    private float _safeSince;
+    private bool _forcedWakeUsed;
+    private float _nextThroneCheckTime;
+    private bool _cachedOnThrone;
+    private float _wellFedEndTime;
+    private Coroutine _respawnRoutine;
+    private Coroutine _sleepTransitionRoutine;
 
     void Update()
     {
-        if (!IsOwner || !isAlive.Value) return;
-        staminaTickTimer += Time.deltaTime;
-        if (staminaTickTimer >= 1f && stamina < maxStamina)
+        if (!IsServer) return;
+        if (!isAlive.Value) return;
+
+        float dt = Time.deltaTime;
+        if (dt <= 0f) return;
+
+        UpdateWellFedServer();
+
+        if (isSleeping.Value)
         {
-            modifyStamina(2);
-            staminaTickTimer = 0f;
+            RegenStaminaServer(dt);
+            TryAutoWakeServer();
+        }
+        else
+        {
+            DrainStaminaServer(dt);
+            if (stamina.Value <= 0f)
+                EnterSleepServer();
         }
     }
 
@@ -69,17 +139,28 @@ public class PlayerStatsManager : NetworkBehaviour
             health.Value = maxHealth;
             points.Value = startingPoints;
             isAlive.Value = true;
+            stamina.Value = maxStamina;
+            isSleeping.Value = false;
+            isSleepTransitioning.Value = false;
+            wellFedStacks.Value = 0;
+            _lastDamageTime = -999f;
+            _safeSince = 0f;
+            _forcedWakeUsed = false;
+            _wellFedEndTime = -999f;
         }
 
         if (IsOwner)
         {
-            stamina = maxStamina;
             UpdateStaminaUI();
         }
 
         health.OnValueChanged += OnHealthValueChanged;
         points.OnValueChanged += OnPointsValueChanged;
         isAlive.OnValueChanged += OnAliveStatusChanged;
+        stamina.OnValueChanged += OnStaminaValueChanged;
+        isSleeping.OnValueChanged += OnSleepingChanged;
+        isSleepTransitioning.OnValueChanged += OnSleepTransitionChanged;
+        wellFedStacks.OnValueChanged += OnWellFedStacksChanged;
 
         if (debugMode)
             Debug.Log($"PlayerStatsManager initialized for {(IsOwner ? "Owner" : "Non-Owner")}");
@@ -92,6 +173,10 @@ public class PlayerStatsManager : NetworkBehaviour
         health.OnValueChanged -= OnHealthValueChanged;
         points.OnValueChanged -= OnPointsValueChanged;
         isAlive.OnValueChanged -= OnAliveStatusChanged;
+        stamina.OnValueChanged -= OnStaminaValueChanged;
+        isSleeping.OnValueChanged -= OnSleepingChanged;
+        isSleepTransitioning.OnValueChanged -= OnSleepTransitionChanged;
+        wellFedStacks.OnValueChanged -= OnWellFedStacksChanged;
     }
 
     #region Health Management
@@ -102,6 +187,7 @@ public class PlayerStatsManager : NetworkBehaviour
         Debug.Log("TakeDamageServerRpc called on server");
 
         if (!isAlive.Value) return;
+        if (IsSleeping) return;
         if (damage <= 0) return;
 
         var dmg = damage;
@@ -110,9 +196,15 @@ public class PlayerStatsManager : NetworkBehaviour
         if (dr != null)
             dmg = Mathf.CeilToInt(dmg * dr.DamageMultiplier);
 
+        int appliedDamage = Mathf.Min(dmg, health.Value);
         int newHealth = Mathf.Max(0, health.Value - dmg);
         health.Value = newHealth;
+        _lastDamageTime = Time.time;
         UpdateHealthUIClientRpc(newHealth);
+
+        var super = GetComponent<SuperCharge>();
+        if (super != null)
+            super.AddChargeFromDamageTakenServer(appliedDamage);
         if (debugMode)
             Debug.Log($"[SERVER] Player took {dmg} damage. Health: {newHealth}/{maxHealth}");
 
@@ -166,6 +258,12 @@ public class PlayerStatsManager : NetworkBehaviour
 
         if (debugMode)
             Debug.Log("Player died!");
+
+        var carrier = GetComponent<MillstoneCarrier>();
+        if (carrier != null && carrier.IsCarrying.Value)
+            carrier.DropCarriedHeadServer();
+
+        StartRespawnCountdownServer();
     }
 
     public void Respawn()
@@ -258,8 +356,17 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        StopSleepTransitionRoutine();
         health.Value = maxHealth;
         isAlive.Value = true;
+        stamina.Value = maxStamina;
+        isSleeping.Value = false;
+        isSleepTransitioning.Value = false;
+        wellFedStacks.Value = 0;
+        _lastDamageTime = -999f;
+        _safeSince = 0f;
+        _forcedWakeUsed = false;
+        _wellFedEndTime = -999f;
         UpdateHealthUIClientRpc(health.Value);
 
         if (debugMode)
@@ -321,23 +428,258 @@ public class PlayerStatsManager : NetworkBehaviour
         return true;
     }
 
-    public void modifyStamina(int amount)
+    [ServerRpc]
+    public void RequestSleepServerRpc(ServerRpcParams rpcParams = default)
     {
-        if (amount > 0)
-        {
-            amount = amount + stamina > maxStamina ? maxStamina - stamina : amount;
-        }
-        else
-        {
-            amount = amount + stamina < 0 ? -stamina : amount;
-        }
-        stamina += amount;
-        UpdateStaminaUI();
+        if (!IsServer) return;
+        if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
+        if (isSleeping.Value || isSleepTransitioning.Value) return;
+
+        float minRequired = maxStamina * manualRestMinPercent;
+        if (stamina.Value < minRequired) return;
+
+        EnterSleepServer();
     }
 
-    public int getStamina()
+    [ServerRpc]
+    public void RequestWakeServerRpc(ServerRpcParams rpcParams = default)
     {
-        return stamina;
+        if (!IsServer) return;
+        if (rpcParams.Receive.SenderClientId != OwnerClientId) return;
+        if (!isSleeping.Value && !isSleepTransitioning.Value) return;
+
+        float required = maxStamina * autoWakePercent;
+        if (stamina.Value < required) return;
+        if (_forcedWakeUsed) return;
+
+        _forcedWakeUsed = true;
+        WakeUpServer();
+    }
+
+    #endregion
+
+    #region Stamina (GDD)
+
+    private void DrainStaminaServer(float dt)
+    {
+        float drainPercent = activeDrainPercentPerSec;
+        if (IsCarrying())
+            drainPercent += carryExtraDrainPercentPerSec;
+
+        float drainPerSec = (drainPercent / 100f) * maxStamina;
+        float bonus = GetWellFedBonusPerSec();
+        float next = stamina.Value - drainPerSec * dt + bonus * dt;
+        stamina.Value = Mathf.Clamp(next, 0f, maxStamina);
+    }
+
+    private void RegenStaminaServer(float dt)
+    {
+        float regen = IsOnOwnThrone() ? regenOnThronePerSec : regenOnGroundPerSec;
+        if (Time.time - _lastDamageTime <= underFireSeconds)
+            regen *= (1f - underFirePenalty);
+
+        regen += GetWellFedBonusPerSec();
+        stamina.Value = Mathf.Min(maxStamina, stamina.Value + regen * dt);
+    }
+
+    private void EnterSleepServer()
+    {
+        if (!IsServer) return;
+        if (isSleeping.Value || isSleepTransitioning.Value) return;
+
+        if (sleepTransitionSeconds <= 0f)
+        {
+            SetSleepingStateServer(true);
+            return;
+        }
+
+        isSleepTransitioning.Value = true;
+        StopSleepTransitionRoutine();
+        _sleepTransitionRoutine = StartCoroutine(SleepTransitionRoutine());
+    }
+
+    private void WakeUpServer()
+    {
+        if (!IsServer) return;
+        if (!isSleeping.Value && !isSleepTransitioning.Value) return;
+
+        StopSleepTransitionRoutine();
+        isSleepTransitioning.Value = false;
+        SetSleepingStateServer(false);
+        _safeSince = 0f;
+        ConsumeFeastFoodOnWakeServer();
+    }
+
+    private void TryAutoWakeServer()
+    {
+        float required = maxStamina * autoWakePercent;
+        if (stamina.Value < required)
+        {
+            _safeSince = 0f;
+            return;
+        }
+
+        if (IsEnemyNearby())
+        {
+            _safeSince = 0f;
+            return;
+        }
+
+        if (_safeSince <= 0f)
+            _safeSince = Time.time;
+
+        if (Time.time - _safeSince >= safeEnemySeconds)
+            WakeUpServer();
+    }
+
+    private bool IsCarrying()
+    {
+        var carrier = GetComponent<MillstoneCarrier>();
+        return carrier != null && carrier.IsCarrying.Value;
+    }
+
+    private bool IsOnOwnThrone()
+    {
+        if (Time.time < _nextThroneCheckTime)
+            return _cachedOnThrone;
+
+        _nextThroneCheckTime = Time.time + 0.25f;
+        _cachedOnThrone = false;
+
+        var thrones = FindObjectsOfType<ThroneCapture>(true);
+        foreach (var t in thrones)
+        {
+            if (t == null) continue;
+            if (t.ownerClientId.Value != OwnerClientId) continue;
+
+            float sqr = (t.transform.position - transform.position).sqrMagnitude;
+            if (sqr <= throneRegenRadius * throneRegenRadius)
+            {
+                _cachedOnThrone = true;
+                break;
+            }
+        }
+
+        return _cachedOnThrone;
+    }
+
+    private bool IsEnemyNearby()
+    {
+        int mask = enemyCheckMask.value != 0 ? enemyCheckMask.value : LayerMask.GetMask("Player");
+        var hits = Physics.OverlapSphere(transform.position, safeEnemyRadius, mask, QueryTriggerInteraction.Ignore);
+        foreach (var col in hits)
+        {
+            var no = col.GetComponentInParent<NetworkObject>();
+            if (no == null) continue;
+            if (no.OwnerClientId == OwnerClientId) continue;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void UpdateWellFedServer()
+    {
+        if (!IsServer) return;
+        if (wellFedStacks.Value <= 0) return;
+
+        if (Time.time >= _wellFedEndTime)
+        {
+            wellFedStacks.Value = 0;
+            _wellFedEndTime = -999f;
+        }
+    }
+
+    private float GetWellFedBonusPerSec()
+    {
+        if (!IsServer) return 0f;
+        if (wellFedStacks.Value <= 0) return 0f;
+
+        if (Time.time >= _wellFedEndTime)
+        {
+            wellFedStacks.Value = 0;
+            _wellFedEndTime = -999f;
+            return 0f;
+        }
+
+        return wellFedStacks.Value * wellFedRegenPerStack;
+    }
+
+    private void ConsumeFeastFoodOnWakeServer()
+    {
+        if (!IsServer) return;
+
+        var ring = GetComponent<FeastRing>();
+        if (ring == null) return;
+
+        int totalValue;
+        int consumed = ring.ConsumeForWakeServer(maxFeastConsumePiles, out totalValue);
+        if (consumed <= 0) return;
+
+        stamina.Value = Mathf.Min(maxStamina, stamina.Value + totalValue);
+
+        int nextStacks = Mathf.Min(wellFedMaxStacks, wellFedStacks.Value + consumed);
+        wellFedStacks.Value = nextStacks;
+        _wellFedEndTime = Time.time + wellFedDurationSeconds;
+    }
+
+    private void UpdateStaminaUI()
+    {
+        if (GameManager.Instance == null)
+            return;
+
+        bool sleepingNow = IsSleeping;
+        if (GameManager.Instance.sleepingIndicator != null)
+            GameManager.Instance.sleepingIndicator.SetActive(sleepingNow);
+
+        if (GameManager.Instance.staminaBar == null)
+            return;
+
+        var bar = GameManager.Instance.staminaBar;
+        bar.value = maxStamina <= 0f ? 0f : stamina.Value / maxStamina;
+
+        var staminaText = bar.GetComponentInChildren<TextMeshProUGUI>();
+        if (staminaText != null)
+        {
+            string state = sleepingNow ? "SLEEPING" : "STAMINA";
+            staminaText.text = $"{state}: {Mathf.CeilToInt(stamina.Value)}";
+        }
+
+        if (GameManager.Instance.lowStaminaIndicator != null)
+        {
+            bool low = !sleepingNow && stamina.Value <= maxStamina * lowStaminaPercent;
+            GameManager.Instance.lowStaminaIndicator.SetActive(low);
+        }
+
+    }
+
+    private void SetSleepingStateServer(bool sleeping)
+    {
+        if (!IsServer) return;
+
+        isSleeping.Value = sleeping;
+        if (sleeping)
+        {
+            _safeSince = 0f;
+            _forcedWakeUsed = false;
+        }
+    }
+
+    private System.Collections.IEnumerator SleepTransitionRoutine()
+    {
+        yield return new WaitForSeconds(sleepTransitionSeconds);
+        _sleepTransitionRoutine = null;
+
+        if (!IsServer) yield break;
+        isSleepTransitioning.Value = false;
+        SetSleepingStateServer(true);
+    }
+
+    private void StopSleepTransitionRoutine()
+    {
+        if (_sleepTransitionRoutine == null) return;
+        StopCoroutine(_sleepTransitionRoutine);
+        _sleepTransitionRoutine = null;
     }
 
     #endregion
@@ -359,6 +701,33 @@ public class PlayerStatsManager : NetworkBehaviour
 
         if (debugMode)
             Debug.Log($"Points changed: {oldPoints} -> {newPoints}");
+    }
+
+    private void OnStaminaValueChanged(float oldValue, float newValue)
+    {
+        if (!IsOwner) return;
+        OnStaminaChanged?.Invoke(newValue, maxStamina, IsSleeping);
+        UpdateStaminaUI();
+    }
+
+    private void OnSleepingChanged(bool oldValue, bool newValue)
+    {
+        if (!IsOwner) return;
+        OnStaminaChanged?.Invoke(stamina.Value, maxStamina, IsSleeping);
+        UpdateStaminaUI();
+    }
+
+    private void OnSleepTransitionChanged(bool oldValue, bool newValue)
+    {
+        if (!IsOwner) return;
+        OnStaminaChanged?.Invoke(stamina.Value, maxStamina, IsSleeping);
+        UpdateStaminaUI();
+    }
+
+    private void OnWellFedStacksChanged(int oldValue, int newValue)
+    {
+        if (!IsOwner) return;
+        UpdateStaminaUI();
     }
 
     private void OnAliveStatusChanged(bool wasAlive, bool nowAlive)
@@ -428,33 +797,102 @@ public class PlayerStatsManager : NetworkBehaviour
     {
         if (!IsServer) return;
 
+        StopRespawnCountdownServer();
+        StopSleepTransitionRoutine();
         health.Value = maxHealth;
         points.Value = startingPoints;
         isAlive.Value = true;
+        stamina.Value = maxStamina;
+        isSleeping.Value = false;
+        isSleepTransitioning.Value = false;
+        wellFedStacks.Value = 0;
+        _lastDamageTime = -999f;
+        _safeSince = 0f;
+        _forcedWakeUsed = false;
+        _wellFedEndTime = -999f;
 
         // also update owner UI immediately
         UpdateHealthUIClientRpc(health.Value);
-
-        // stamina is local, so tell owner client to reset it
-        ResetStaminaOwnerClientRpc();
     }
 
-    [ClientRpc]
-    private void ResetStaminaOwnerClientRpc()
+    private void StartRespawnCountdownServer()
     {
-        if (!IsOwner) return;
-        stamina = maxStamina;
+        if (!IsServer) return;
+        if (respawnSeconds <= 0f) return;
 
-        UpdateStaminaUI();
+        StopRespawnCountdownServer();
+        _respawnRoutine = StartCoroutine(RespawnCountdownRoutine());
     }
 
-    private void UpdateStaminaUI()
+    private void StopRespawnCountdownServer()
     {
-        if (GameManager.Instance == null || GameManager.Instance.staminaBar == null)
-            return;
+        if (_respawnRoutine != null)
+        {
+            StopCoroutine(_respawnRoutine);
+            _respawnRoutine = null;
+        }
+    }
 
-        GameManager.Instance.staminaBar.value = (float)stamina / maxStamina;
-        var staminaText = GameManager.Instance.staminaBar.GetComponentInChildren<TextMeshProUGUI>();
-        if (staminaText != null) staminaText.text = $"Stamina: {stamina}";
+    private System.Collections.IEnumerator RespawnCountdownRoutine()
+    {
+        float endTime = Time.time + respawnSeconds;
+
+        while (Time.time < endTime)
+        {
+            if (MatchManager.Instance != null)
+            {
+                var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
+                if (phase == MatchManager.MatchPhase.MatchEnded || phase == MatchManager.MatchPhase.RoundEnded)
+                    yield break;
+            }
+
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        RespawnAtHomeServer();
+        _respawnRoutine = null;
+    }
+
+    private void RespawnAtHomeServer()
+    {
+        if (!IsServer) return;
+
+        var pedestal = FindHomePedestal();
+        if (pedestal != null)
+        {
+            Vector3 pos = pedestal.transform.position + respawnOffset;
+            Quaternion rot = pedestal.transform.rotation;
+
+            transform.SetPositionAndRotation(pos, rot);
+
+            var tele = GetComponent<PlayerTeleport>();
+            if (tele != null)
+            {
+                var target = new ClientRpcParams
+                {
+                    Send = new ClientRpcSendParams
+                    {
+                        TargetClientIds = new[] { OwnerClientId }
+                    }
+                };
+
+                tele.TeleportOwnerClientRpc(pos, rot, target);
+            }
+        }
+
+        ApplyRespawnServer();
+    }
+
+    private MillstonePedestal FindHomePedestal()
+    {
+        var pedestals = FindObjectsOfType<MillstonePedestal>(true);
+        foreach (var p in pedestals)
+        {
+            if (p == null) continue;
+            if (p.ownerClientId.Value == OwnerClientId)
+                return p;
+        }
+
+        return null;
     }
 }

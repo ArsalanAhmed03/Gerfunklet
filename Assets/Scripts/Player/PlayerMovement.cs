@@ -5,10 +5,14 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : NetworkBehaviour
 {
     [Header("Movement Settings")]
-    public float moveSpeed = 5f;
+    public float moveSpeed = 2.1f;
+    [SerializeField] private float carryMoveSpeedMultiplier = 1.3f / 2.1f;
 
     [Header("Input Action Asset")]
     public InputActionAsset playerInputActions; // Assign in Inspector
+
+    [Header("Debug")]
+    [SerializeField] private bool debugSpawnMinionOnAttack = false;
 
     private InputAction moveAction;
     private InputAction lookAction;
@@ -19,6 +23,12 @@ public class PlayerMovement : NetworkBehaviour
     private InputAction ability2Action;
     private InputAction ability3Action;
     private InputAction ability4Action;
+    private InputAction ability5Action;
+    private InputAction superAction;
+    private InputAction millstoneDropAction;
+    private InputAction millstoneThrowAction;
+    private InputAction restAction;
+    private InputAction wakeAction;
 
     [Header("Animation")]
     public PlayerAnimator playerAnimator;
@@ -36,6 +46,12 @@ public class PlayerMovement : NetworkBehaviour
             ability2Action = playerMap.FindAction("Ability2");
             ability3Action = playerMap.FindAction("Ability3");
             ability4Action = playerMap.FindAction("Ability4");
+            ability5Action = playerMap.FindAction("Ability5", false);
+            superAction = playerMap.FindAction("Super", false);
+            millstoneDropAction = playerMap.FindAction("MillstoneDrop", false);
+            millstoneThrowAction = playerMap.FindAction("MillstoneThrow", false);
+            restAction = playerMap.FindAction("Rest", false);
+            wakeAction = playerMap.FindAction("Wake", false);
 
         }
     }
@@ -50,6 +66,12 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Enable();
         ability3Action?.Enable();
         ability4Action?.Enable();
+        ability5Action?.Enable();
+        superAction?.Enable();
+        millstoneDropAction?.Enable();
+        millstoneThrowAction?.Enable();
+        restAction?.Enable();
+        wakeAction?.Enable();
 
     }
 
@@ -63,6 +85,12 @@ public class PlayerMovement : NetworkBehaviour
         ability2Action?.Disable();
         ability3Action?.Disable();
         ability4Action?.Disable();
+        ability5Action?.Disable();
+        superAction?.Disable();
+        millstoneDropAction?.Disable();
+        millstoneThrowAction?.Disable();
+        restAction?.Disable();
+        wakeAction?.Disable();
 
     }
 
@@ -72,6 +100,35 @@ public class PlayerMovement : NetworkBehaviour
         if (GameManager.Instance != null && !GameManager.Instance.GameplayEnabled) return;
         var stun = GetComponent<StunReceiver>();
         if (stun != null && stun.IsStunned)
+        {
+            playerAnimator?.SetMoving(false);
+            return;
+        }
+
+        var knockback = GetComponent<KnockbackReceiver>();
+        if (knockback != null && knockback.IsKnockedBack)
+        {
+            playerAnimator?.SetMoving(false);
+            return;
+        }
+
+        var statsManager = GetComponent<PlayerStatsManager>();
+        if (statsManager != null)
+        {
+            if (!statsManager.IsAlive)
+            {
+                playerAnimator?.SetMoving(false);
+                return;
+            }
+
+            if (restAction != null && restAction.WasPressedThisFrame())
+                statsManager.RequestSleepServerRpc();
+
+            if (wakeAction != null && wakeAction.WasPressedThisFrame())
+                statsManager.RequestWakeServerRpc();
+        }
+
+        if (statsManager != null && statsManager.IsSleeping)
         {
             playerAnimator?.SetMoving(false);
             return;
@@ -93,6 +150,11 @@ public class PlayerMovement : NetworkBehaviour
             // transform.Translate(move.normalized * moveSpeed * Time.deltaTime, Space.World);
             var buff = GetComponent<BuffReceiver>();
             float speedMul = buff != null ? buff.MoveSpeedMultiplier : 1f;
+
+            var millstoneCarrier = GetComponent<MillstoneCarrier>();
+            if (millstoneCarrier != null && millstoneCarrier.IsCarrying.Value)
+                speedMul *= carryMoveSpeedMultiplier;
+
             transform.Translate(move.normalized * moveSpeed * speedMul * Time.deltaTime, Space.World);
 
             // Rotate to face direction
@@ -107,25 +169,18 @@ public class PlayerMovement : NetworkBehaviour
             playerAnimator?.SetMoving(false);
         }
 
-        var statsManager = GetComponent<PlayerStatsManager>();
         // Attack logic
-        if (attackAction != null && statsManager != null && statsManager.getStamina() >= 10)
+        if (attackAction != null && attackAction.WasPressedThisFrame())
         {
-            if (attackAction.WasPressedThisFrame())
-            {
-                Debug.Log("Attack!");
-                // Trigger attack animation
-                // playerAnimator?.Attack();
-                if (statsManager != null)
-                {
-                    statsManager.modifyStamina(-10);
-                }
+            Debug.Log("Attack!");
+            var melee = GetComponent<PlayerMeleeAttack>();
+            if (melee != null)
+                melee.TryAttack();
 
-                if (LocalSpawner.Instance != null)
-                {
-                    Debug.Log("Requesting minion spawn from server...");
-                    LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);
-                }
+            if (debugSpawnMinionOnAttack && LocalSpawner.Instance != null)
+            {
+                Debug.Log("Requesting minion spawn from server...");
+                LocalSpawner.Instance.SpawnMinionForClientServerRpc(OwnerClientId);
             }
         }
 
@@ -162,6 +217,32 @@ public class PlayerMovement : NetworkBehaviour
             {
                 Debug.Log("Casting ability slot 3");
                 abilityRunner.TryCastSlot(3);
+            }
+
+            if (ability5Action != null && ability5Action.WasPressedThisFrame())
+            {
+                Debug.Log("Casting ability slot 4");
+                abilityRunner.TryCastSlot(4);
+            }
+        }
+
+        var superController = GetComponent<SuperController>();
+        if (superController != null && superAction != null && superAction.WasPressedThisFrame())
+        {
+            superController.TryCastSuper();
+        }
+
+        var carrier = GetComponent<MillstoneCarrier>();
+        if (carrier != null && carrier.IsCarrying.Value)
+        {
+            if (millstoneDropAction != null && millstoneDropAction.WasPressedThisFrame())
+            {
+                carrier.DropCarriedHeadServerRpc();
+            }
+
+            if (millstoneThrowAction != null && millstoneThrowAction.WasPressedThisFrame())
+            {
+                carrier.ThrowCarriedHeadServerRpc(transform.forward);
             }
         }
 
