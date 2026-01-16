@@ -11313,6 +11313,11 @@ MonoBehaviour:
   - {fileID: 1610784083}
   - {fileID: 503037398}
   - {fileID: 1150013977}
+  slotCooldownFills:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   mulliganButton: {fileID: 1205259850}
   mulliganButtonText: {fileID: 50554895}
   superChoiceRoot: {fileID: 1158586410}
@@ -12880,6 +12885,7 @@ MonoBehaviour:
   healthBar: {fileID: 779680998}
   staminaBar: {fileID: 310176022}
   sleepingIndicator: {fileID: 1246855228}
+  lowStaminaIndicator: {fileID: 0}
   controlsRoot: {fileID: 1673637231}
   enemyCitadelBar: {fileID: 1551877285}
   enemyCitadelText: {fileID: 0}
@@ -12891,6 +12897,9 @@ MonoBehaviour:
   throneB: {fileID: 1807521148}
   statusText: {fileID: 1249303380}
   endText: {fileID: 1265741156}
+  resultsRoot: {fileID: 0}
+  rewardsText: {fileID: 0}
+  rematchButton: {fileID: 0}
   roundText: {fileID: 288740334}
   scoreText: {fileID: 591935283}
   roundResultText: {fileID: 1939962925}
