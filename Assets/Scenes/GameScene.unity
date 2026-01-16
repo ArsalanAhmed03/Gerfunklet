@@ -11552,10 +11552,10 @@ MonoBehaviour:
   - {fileID: 503037398}
   - {fileID: 1150013977}
   slotCooldownFills:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  - {fileID: 418193580}
+  - {fileID: 1610784085}
+  - {fileID: 503037400}
+  - {fileID: 1150013979}
   mulliganButton: {fileID: 1205259850}
   mulliganButtonText: {fileID: 50554895}
   superChoiceRoot: {fileID: 1158586410}
