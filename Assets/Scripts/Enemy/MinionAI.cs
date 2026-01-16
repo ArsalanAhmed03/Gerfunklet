@@ -127,10 +127,14 @@ public class MinionAI : NetworkBehaviour
         }
 
         Debug.Log($"{gameObject.name} attacks {target.name} for {damage} damage!");
+        int structureDamage = damage;
+        if (_stats != null)
+            structureDamage = Mathf.CeilToInt(damage * _stats.StructureDamageMultiplier);
+
         var citadel = target.GetComponent<CitadelHealth>();
         if (citadel != null)
         {
-            citadel.ApplyDamageServer(damage);
+            citadel.ApplyDamageServer(structureDamage);
         }
         else
         {
@@ -144,7 +148,7 @@ public class MinionAI : NetworkBehaviour
                 var buildable = target.GetComponent<BuildableHealth>();
                 if (buildable != null)
                 {
-                    buildable.ApplyDamageServer(damage);
+                    buildable.ApplyDamageServer(structureDamage);
                 }
                 else
                 {

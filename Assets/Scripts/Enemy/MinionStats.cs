@@ -45,6 +45,7 @@ public class MinionStats : MonoBehaviour
     [SerializeField] private float attackIntervalSeconds = 1f;
     [SerializeField] private bool destroyOnAttack = true;
     [SerializeField] private float visionRange = 0f;
+    [SerializeField] private float structureDamageMultiplier = 1f;
 
     [Header("Targeting")]
     [SerializeField] private Targeting targeting = Targeting.PlayersFirst;
@@ -73,6 +74,7 @@ public class MinionStats : MonoBehaviour
     public float AttackIntervalSeconds => attackIntervalSeconds;
     public bool DestroyOnAttack => destroyOnAttack;
     public float VisionRange => visionRange;
+    public float StructureDamageMultiplier => structureDamageMultiplier;
     public Targeting TargetingMode => targeting;
     public bool UseAoeAttack => useAoeAttack;
     public int AoeDamage => aoeDamage;

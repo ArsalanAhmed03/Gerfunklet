@@ -20,6 +20,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 
 ### Citadel (Partial)
 - Citadel health uses GDD max HP (2000) and can drive optional tier visuals at 75/50/25% HP.
+- Gerfunklet melee attacks can damage enemy Citadels and buildables.
+- Minions can scale structure damage via `MinionStats.structureDamageMultiplier` (set per prefab).
 
 ### Ability Loadout
 - Ability loadout UI is disabled; Gerfunklet abilities are fixed to 5 core abilities during the match.
@@ -79,6 +81,8 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - Cards can be played during Playing/Overtime to spend ATP, spawn the card prefab after a warmup, and replace the slot.
 - Card placement is validated against a deployment ring: base ring around the player’s home, forward ring around the Gerfunklet once it crosses midline.
 - Played or mulliganed cards are returned to the bottom of the deck (8-card cycle).
+- Optional placement ghost preview + valid/invalid tint while placing (CardPlacementController).
+- Optional global hand GCD fill via `CardHandUI.slotCooldownFills`.
 
 ### Stamina (GDD core)
 - Stamina is server-authoritative (max 600) and drains while active; extra drain applies while carrying the Millstone.
@@ -94,8 +98,7 @@ This document mirrors the GDD only where code exists today. If a GDD rule is not
 - ObjectiveZone wins are disabled by default to match GDD win paths (can be re-enabled in MatchManager).
 
 ## Not Yet Implemented (GDD)
-- Full Citadel/Throne flow (structure attacks, siege units, damage tuning).
-- Advanced card-hand UX (drag/ghost previews, placement feedback, card cooldown/GCD UI).
+- Citadel/Throne tuning pass (per-unit structure damage values + balance tuning).
 - Remote Config, analytics events, and security rules.
 
 ## Scene/Prefab Changes Required To Use New Systems

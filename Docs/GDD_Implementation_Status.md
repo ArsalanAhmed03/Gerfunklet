@@ -229,11 +229,12 @@ Legend:
   - `Assets/Scripts/Abilities/BoulderPitchProjectile.cs`
 
 ## GDD-17 UI/UX (HUD + Feedback)
-- Status: Partial
+- Status: Complete
 - Implemented:
   - Core HUD elements + phase gating
-- Deltas:
-  - Super HUD polish missing
+  - Super HUD polish (ready indicator, choice icon/name)
+  - Placement ghost preview (optional)
 - Key Files:
   - `Assets/Scripts/Managers/GameManager.cs`
   - `Assets/Scripts/UI/*`
+  - `Assets/Scripts/Cards/CardPlacementController.cs`

@@ -140,6 +140,31 @@ public class PlayerMeleeAttack : NetworkBehaviour
                 minionHealth.TakeDamage(attackDamage);
                 totalDamage += attackDamage;
             }
+
+            var buildable = hit.GetComponentInParent<BuildableHealth>();
+            if (buildable != null)
+            {
+                var inst = hit.GetComponentInParent<BuildableInstance>();
+                if (inst != null && inst.OwnerClientId == OwnerClientId)
+                    continue;
+
+                if (!unique.Add(buildable.transform))
+                    continue;
+
+                buildable.ApplyDamageServer(attackDamage);
+                totalDamage += attackDamage;
+                continue;
+            }
+
+            var citadel = hit.GetComponentInParent<CitadelHealth>();
+            if (citadel != null && citadel.ownerClientId.Value != OwnerClientId)
+            {
+                if (!unique.Add(citadel.transform))
+                    continue;
+
+                citadel.ApplyDamageServer(attackDamage);
+                totalDamage += attackDamage;
+            }
         }
 
         if (totalDamage > 0)

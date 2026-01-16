@@ -17,6 +17,8 @@ public class SuperController : NetworkBehaviour
 
     private AbilityRunner _runner;
 
+    public SuperAbilityCatalog Catalog => catalog;
+
     private void Awake()
     {
         if (catalog != null) catalog.Build();
@@ -88,10 +90,16 @@ public class SuperController : NetworkBehaviour
         PlaySuperFxClientRpc(Choice.Value);
     }
 
-    private SuperAbilityDefinition GetDefinition(SuperChoice choice)
+    public SuperAbilityDefinition GetDefinition(SuperChoice choice)
     {
         if (catalog == null) return null;
         return catalog.GetDefinition(choice);
+    }
+
+    public Sprite GetIcon(SuperChoice choice)
+    {
+        if (catalog == null) return null;
+        return catalog.GetIcon(choice);
     }
 
     [ClientRpc]
