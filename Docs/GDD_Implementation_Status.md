@@ -159,7 +159,7 @@ Legend:
   - `Assets/Scripts/Player/PlayerStatsManager.cs`
 
 ## GDD-14 Minion Roster & AI
-- Status: Partial
+- Status: Complete
 - Implemented:
   - Minion stats + basic AI
   - Auto-targeting vs units/structures
@@ -169,14 +169,30 @@ Legend:
   - Harvester resource nodes (gather -> carry -> deposit ATP)
   - Scout resource theft from enemy nodes
   - Harvester/Scout retreat to base when low HP
-- Deltas:
-  - Expanded roster not implemented
-  - Advanced per-unit behaviors (kite/evade, structure-only siege logic, role-specific targeting heuristics) are simplified
+  - Expanded roster abilities (Jester/Shriek, Skirmisher/Swift Strike, Brawler/Frenzy, Infiltrator/Overload, Avian Scout/Mark, Crusher/Charge, Runner/Impact, Sentinel/Zone, Gloom/Bind, Beetle/Burst, Siphon/Energy Drain, Plasma/Overcharge)
+  - Role-specific helpers (kite behavior, retreat on low HP, preferred target roles)
 - Key Files:
   - `Assets/Scripts/Enemy/MinionStats.cs`
   - `Assets/Scripts/Enemy/MinionAI.cs`
   - `Assets/Scripts/Enemy/MinionForageAgent.cs`
   - `Assets/Scripts/Enemy/MinionGatherer.cs`
+  - `Assets/Scripts/Enemy/MinionSonicShriek.cs`
+  - `Assets/Scripts/Enemy/MinionSwiftStrike.cs`
+  - `Assets/Scripts/Enemy/MinionFrenziedAssault.cs`
+  - `Assets/Scripts/Enemy/MinionSystemOverload.cs`
+  - `Assets/Scripts/Enemy/MinionMarkOnHit.cs`
+  - `Assets/Scripts/Enemy/MinionUnstoppableCharge.cs`
+  - `Assets/Scripts/Enemy/MinionBurstingImpact.cs`
+  - `Assets/Scripts/Enemy/MinionZoneDeployment.cs`
+  - `Assets/Scripts/Enemy/ZoneField.cs`
+  - `Assets/Scripts/Enemy/MinionShadowBind.cs`
+  - `Assets/Scripts/Enemy/MinionVolatileBurst.cs`
+  - `Assets/Scripts/Enemy/BurningPatch.cs`
+  - `Assets/Scripts/Enemy/MinionEnergySiphon.cs`
+  - `Assets/Scripts/Enemy/MinionOvercharge.cs`
+  - `Assets/Scripts/Enemy/MinionKiteBehavior.cs`
+  - `Assets/Scripts/Enemy/MinionRetreatOnLowHealth.cs`
+  - `Assets/Scripts/Enemy/MinionTargetingProfile.cs`
   - `Assets/Scripts/Economy/ResourceNode.cs`
   - `Assets/Scripts/Economy/ResourceDeposit.cs`
   - `Assets/Scripts/Player/ForageModeController.cs`
@@ -213,11 +229,12 @@ Legend:
   - `Assets/Scripts/Abilities/BoulderPitchProjectile.cs`
 
 ## GDD-17 UI/UX (HUD + Feedback)
-- Status: Partial
+- Status: Complete
 - Implemented:
   - Core HUD elements + phase gating
-- Deltas:
-  - Super HUD polish missing
+  - Super HUD polish (ready indicator, choice icon/name)
+  - Placement ghost preview (optional)
 - Key Files:
   - `Assets/Scripts/Managers/GameManager.cs`
   - `Assets/Scripts/UI/*`
+  - `Assets/Scripts/Cards/CardPlacementController.cs`

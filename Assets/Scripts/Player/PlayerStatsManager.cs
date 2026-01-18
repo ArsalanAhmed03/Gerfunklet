@@ -196,6 +196,10 @@ public class PlayerStatsManager : NetworkBehaviour
         if (dr != null)
             dmg = Mathf.CeilToInt(dmg * dr.DamageMultiplier);
 
+        var amp = GetComponent<DamageAmplifierReceiver>();
+        if (amp != null)
+            dmg = Mathf.CeilToInt(dmg * amp.DamageMultiplier);
+
         int appliedDamage = Mathf.Min(dmg, health.Value);
         int newHealth = Mathf.Max(0, health.Value - dmg);
         health.Value = newHealth;

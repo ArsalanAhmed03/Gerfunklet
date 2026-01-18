@@ -46,6 +46,10 @@ public class PlayerMeleeAttack : NetworkBehaviour
         if (stun != null && stun.IsStunned)
             return;
 
+        var disable = GetComponent<CombatDisableReceiver>();
+        if (disable != null && disable.IsDisabled)
+            return;
+
         if (MatchManager.Instance != null)
         {
             var phase = (MatchManager.MatchPhase)MatchManager.Instance.Phase.Value;
@@ -57,7 +61,17 @@ public class PlayerMeleeAttack : NetworkBehaviour
         if (now < _nextAttackServerTime)
             return;
 
-        _nextAttackServerTime = now + attackIntervalSeconds;
+        float attackSpeedMul = 1f;
+        var buff = GetComponent<BuffReceiver>();
+        if (buff != null)
+            attackSpeedMul *= buff.AttackSpeedMultiplier;
+
+        var mod = GetComponent<AttackSpeedModifierReceiver>();
+        if (mod != null)
+            attackSpeedMul *= mod.Multiplier;
+
+        attackSpeedMul = Mathf.Max(0.1f, attackSpeedMul);
+        _nextAttackServerTime = now + (attackIntervalSeconds / attackSpeedMul);
         ApplyMeleeDamageServer();
         PlayAttackClientRpc();
     }
@@ -73,6 +87,10 @@ public class PlayerMeleeAttack : NetworkBehaviour
     private void ApplyMeleeDamageServer()
     {
         if (!IsServer) return;
+
+        var miss = GetComponent<MissChanceReceiver>();
+        if (miss != null && miss.MissChance > 0f && Random.value < miss.MissChance)
+            return;
 
         int mask = hitMask.value == 0 ? ~0 : hitMask.value;
         Vector3 center = transform.position + transform.forward * attackRange;
@@ -120,6 +138,31 @@ public class PlayerMeleeAttack : NetworkBehaviour
                     continue;
 
                 minionHealth.TakeDamage(attackDamage);
+                totalDamage += attackDamage;
+            }
+
+            var buildable = hit.GetComponentInParent<BuildableHealth>();
+            if (buildable != null)
+            {
+                var inst = hit.GetComponentInParent<BuildableInstance>();
+                if (inst != null && inst.OwnerClientId == OwnerClientId)
+                    continue;
+
+                if (!unique.Add(buildable.transform))
+                    continue;
+
+                buildable.ApplyDamageServer(attackDamage);
+                totalDamage += attackDamage;
+                continue;
+            }
+
+            var citadel = hit.GetComponentInParent<CitadelHealth>();
+            if (citadel != null && citadel.ownerClientId.Value != OwnerClientId)
+            {
+                if (!unique.Add(citadel.transform))
+                    continue;
+
+                citadel.ApplyDamageServer(attackDamage);
                 totalDamage += attackDamage;
             }
         }

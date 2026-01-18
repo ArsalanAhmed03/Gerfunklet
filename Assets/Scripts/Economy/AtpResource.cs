@@ -80,6 +80,16 @@ public class AtpResource : NetworkBehaviour
         Atp.Value = Mathf.Clamp(Atp.Value + amount, 0f, atpCap);
     }
 
+    public bool TryDrainServer(float amount)
+    {
+        if (!IsServer) return false;
+        if (amount <= 0f) return false;
+        if (Atp.Value <= 0f) return false;
+
+        Atp.Value = Mathf.Max(0f, Atp.Value - amount);
+        return true;
+    }
+
     [ServerRpc]
     public void TrySpendServerRpc(float cost, ServerRpcParams rpcParams = default)
     {

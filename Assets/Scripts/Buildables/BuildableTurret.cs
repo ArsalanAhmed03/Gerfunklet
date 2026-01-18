@@ -26,7 +26,12 @@ public class BuildableTurret : NetworkBehaviour
         if (target == null) return;
 
         ApplyDamage(target);
-        _nextAttackTime = Time.time + attackIntervalSeconds;
+        float attackSpeedMul = 1f;
+        var mod = GetComponent<AttackSpeedModifierReceiver>();
+        if (mod != null)
+            attackSpeedMul = Mathf.Max(0.1f, mod.Multiplier);
+
+        _nextAttackTime = Time.time + (attackIntervalSeconds / attackSpeedMul);
     }
 
     private Transform FindTarget()

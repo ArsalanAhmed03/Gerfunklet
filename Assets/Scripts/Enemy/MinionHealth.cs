@@ -15,8 +15,18 @@ public class MinionHealth : MonoBehaviour
 
     public void TakeDamage(int amount)
     {
-        currentHealth -= amount;
-        Debug.Log($"{gameObject.name} took {amount} damage! HP left: {currentHealth}");
+        int dmg = amount;
+
+        var dr = GetComponent<DamageReceiver>();
+        if (dr != null)
+            dmg = Mathf.CeilToInt(dmg * dr.DamageMultiplier);
+
+        var amp = GetComponent<DamageAmplifierReceiver>();
+        if (amp != null)
+            dmg = Mathf.CeilToInt(dmg * amp.DamageMultiplier);
+
+        currentHealth -= dmg;
+        Debug.Log($"{gameObject.name} took {dmg} damage! HP left: {currentHealth}");
 
         if (currentHealth <= 0)
         {
@@ -33,6 +43,9 @@ public class MinionHealth : MonoBehaviour
     private void Die()
     {
         Debug.Log($"{gameObject.name} died!");
+        var burst = GetComponent<MinionVolatileBurst>();
+        if (burst != null)
+            burst.HandleDeath();
         var dropper = GetComponent<FoodDropper>();
         if (dropper != null)
             dropper.DropServer();

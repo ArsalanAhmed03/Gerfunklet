@@ -20,10 +20,21 @@ public class CardPlacementController : MonoBehaviour
     [SerializeField] private Color validColor = new Color(0.2f, 1f, 0.2f, 0.75f);
     [SerializeField] private Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.75f);
 
+    [Header("Ghost Preview (optional)")]
+    [SerializeField] private bool showGhostPreview = true;
+    [SerializeField] private Material ghostMaterial;
+    [SerializeField] private Vector3 ghostOffset = Vector3.zero;
+    [SerializeField] private float ghostScale = 1f;
+    [SerializeField] private Color ghostValidColor = new Color(0.2f, 1f, 0.2f, 0.55f);
+    [SerializeField] private Color ghostInvalidColor = new Color(1f, 0.2f, 0.2f, 0.55f);
+
     private CardHand _hand;
     private DeploymentRules _rules;
     private int _handIndex = -1;
     private bool _active;
+    private GameObject _ghostInstance;
+    private Renderer[] _ghostRenderers;
+    private MaterialPropertyBlock _ghostProps;
 
     public bool IsActive => _active;
 
@@ -56,7 +67,9 @@ public class CardPlacementController : MonoBehaviour
             worldCamera = Camera.main;
 
         bool hasPoint = TryGetPlacementPoint(out var point);
-        UpdateIndicator(hasPoint, point);
+        bool valid = hasPoint && _rules != null && _rules.IsPlacementValid(point, out _);
+        UpdateIndicator(hasPoint, point, valid);
+        UpdateGhost(hasPoint, point, valid);
 
         if (IsCancelPressed())
         {
@@ -90,10 +103,11 @@ public class CardPlacementController : MonoBehaviour
 
         _hand = hand;
         _handIndex = handIndex;
-        _ = def;
+        CreateGhost(def);
         _rules = hand.GetComponent<DeploymentRules>();
         _active = true;
-        UpdateIndicator(false, Vector3.zero);
+        UpdateIndicator(false, Vector3.zero, false);
+        UpdateGhost(false, Vector3.zero, false);
     }
 
     public void CancelPlacement()
@@ -108,6 +122,7 @@ public class CardPlacementController : MonoBehaviour
         _rules = null;
         _handIndex = -1;
         SetIndicatorActive(false);
+        DestroyGhost();
     }
 
     private bool TryGetPlacementPoint(out Vector3 point)
@@ -160,7 +175,7 @@ public class CardPlacementController : MonoBehaviour
         return false;
     }
 
-    private void UpdateIndicator(bool hasPoint, Vector3 point)
+    private void UpdateIndicator(bool hasPoint, Vector3 point, bool valid)
     {
         if (!_active) return;
         if (placementIndicator == null) return;
@@ -174,7 +189,6 @@ public class CardPlacementController : MonoBehaviour
         SetIndicatorActive(true);
         placementIndicator.transform.position = point + indicatorOffset;
 
-        bool valid = _rules != null && _rules.IsPlacementValid(point, out _);
         if (placementIndicatorRenderer != null)
             placementIndicatorRenderer.material.color = valid ? validColor : invalidColor;
     }
@@ -191,6 +205,96 @@ public class CardPlacementController : MonoBehaviour
         if (placementIndicatorRenderer != null) return;
         if (placementIndicator == null) return;
         placementIndicatorRenderer = placementIndicator.GetComponentInChildren<Renderer>(true);
+    }
+
+    private void CreateGhost(CardDefinition def)
+    {
+        DestroyGhost();
+        if (!showGhostPreview) return;
+        if (def == null || def.spawnPrefab == null) return;
+
+        _ghostInstance = Instantiate(def.spawnPrefab);
+        _ghostInstance.name = $"{def.spawnPrefab.name}_Ghost";
+        _ghostInstance.transform.localScale *= ghostScale;
+        _ghostInstance.SetActive(false);
+
+        DisableGhostComponents();
+        CacheGhostRenderers();
+    }
+
+    private void DisableGhostComponents()
+    {
+        if (_ghostInstance == null) return;
+
+        var behaviours = _ghostInstance.GetComponentsInChildren<Behaviour>(true);
+        foreach (var behaviour in behaviours)
+        {
+            if (behaviour == null) continue;
+            if (behaviour is Renderer) continue;
+            behaviour.enabled = false;
+        }
+
+        var colliders = _ghostInstance.GetComponentsInChildren<Collider>(true);
+        foreach (var col in colliders)
+            col.enabled = false;
+
+        var rigidbodies = _ghostInstance.GetComponentsInChildren<Rigidbody>(true);
+        foreach (var rb in rigidbodies)
+        {
+            rb.isKinematic = true;
+            rb.detectCollisions = false;
+        }
+    }
+
+    private void CacheGhostRenderers()
+    {
+        if (_ghostInstance == null) return;
+        _ghostRenderers = _ghostInstance.GetComponentsInChildren<Renderer>(true);
+        _ghostProps = new MaterialPropertyBlock();
+
+        if (ghostMaterial != null)
+        {
+            foreach (var renderer in _ghostRenderers)
+            {
+                if (renderer == null) continue;
+                renderer.sharedMaterial = ghostMaterial;
+            }
+        }
+    }
+
+    private void UpdateGhost(bool hasPoint, Vector3 point, bool valid)
+    {
+        if (_ghostInstance == null) return;
+
+        if (!_active || !hasPoint)
+        {
+            _ghostInstance.SetActive(false);
+            return;
+        }
+
+        _ghostInstance.SetActive(true);
+        _ghostInstance.transform.position = point + ghostOffset;
+
+        if (_ghostRenderers == null || _ghostRenderers.Length == 0) return;
+
+        Color color = valid ? ghostValidColor : ghostInvalidColor;
+        _ghostProps.SetColor("_Color", color);
+        _ghostProps.SetColor("_BaseColor", color);
+
+        foreach (var renderer in _ghostRenderers)
+        {
+            if (renderer == null) continue;
+            renderer.SetPropertyBlock(_ghostProps);
+        }
+    }
+
+    private void DestroyGhost()
+    {
+        if (_ghostInstance == null) return;
+        Destroy(_ghostInstance);
+        _ghostInstance = null;
+        _ghostRenderers = null;
+        _ghostProps = null;
     }
 
 }
