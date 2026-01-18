@@ -112,6 +112,13 @@ public class PlayerMovement : NetworkBehaviour
             return;
         }
 
+        var root = GetComponent<RootReceiver>();
+        if (root != null && root.IsRooted)
+        {
+            playerAnimator?.SetMoving(false);
+            return;
+        }
+
         var statsManager = GetComponent<PlayerStatsManager>();
         if (statsManager != null)
         {
@@ -150,6 +157,9 @@ public class PlayerMovement : NetworkBehaviour
             // transform.Translate(move.normalized * moveSpeed * Time.deltaTime, Space.World);
             var buff = GetComponent<BuffReceiver>();
             float speedMul = buff != null ? buff.MoveSpeedMultiplier : 1f;
+            var moveMod = GetComponent<MoveSpeedModifierReceiver>();
+            if (moveMod != null)
+                speedMul *= moveMod.Multiplier;
 
             var millstoneCarrier = GetComponent<MillstoneCarrier>();
             if (millstoneCarrier != null && millstoneCarrier.IsCarrying.Value)

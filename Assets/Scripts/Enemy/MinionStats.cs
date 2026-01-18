@@ -9,7 +9,19 @@ public class MinionStats : MonoBehaviour
         Brute,
         Spewer,
         Scout,
-        Acolyte
+        Acolyte,
+        CrimsonJester,
+        ShadowSkirmisher,
+        GrinBrawler,
+        SleekInfiltrator,
+        AvianScout,
+        CrimsonCrusher,
+        SpikedRunner,
+        SentinelDrone,
+        GloomWeaver,
+        BlastBeetle,
+        EnergySiphon,
+        PlasmaSentry
     }
 
     public enum Targeting
@@ -32,6 +44,8 @@ public class MinionStats : MonoBehaviour
     [SerializeField] private float attackRange = 1.5f;
     [SerializeField] private float attackIntervalSeconds = 1f;
     [SerializeField] private bool destroyOnAttack = true;
+    [SerializeField] private float visionRange = 0f;
+    [SerializeField] private float structureDamageMultiplier = 1f;
 
     [Header("Targeting")]
     [SerializeField] private Targeting targeting = Targeting.PlayersFirst;
@@ -59,6 +73,8 @@ public class MinionStats : MonoBehaviour
     public float AttackRange => attackRange;
     public float AttackIntervalSeconds => attackIntervalSeconds;
     public bool DestroyOnAttack => destroyOnAttack;
+    public float VisionRange => visionRange;
+    public float StructureDamageMultiplier => structureDamageMultiplier;
     public Targeting TargetingMode => targeting;
     public bool UseAoeAttack => useAoeAttack;
     public int AoeDamage => aoeDamage;

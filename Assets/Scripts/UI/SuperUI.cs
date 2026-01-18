@@ -9,6 +9,10 @@ public class SuperUI : MonoBehaviour
     [SerializeField] private Slider chargeBar;
     [SerializeField] private TextMeshProUGUI chargeText;
     [SerializeField] private Button superButton;
+    [SerializeField] private Image superIcon;
+    [SerializeField] private TextMeshProUGUI superNameText;
+    [SerializeField] private GameObject readyIndicator;
+    [SerializeField] private PulseUI readyPulse;
 
     private SuperCharge _charge;
     private SuperController _controller;
@@ -61,14 +65,19 @@ public class SuperUI : MonoBehaviour
         if (_charge == null) return;
 
         _charge.Charge01.OnValueChanged += HandleChargeChanged;
+        if (_controller != null)
+            _controller.Choice.OnValueChanged += HandleChoiceChanged;
         _bound = true;
         HandleChargeChanged(0f, _charge.Charge01.Value);
+        UpdateChoiceVisuals();
     }
 
     private void Unbind()
     {
         if (_charge != null)
             _charge.Charge01.OnValueChanged -= HandleChargeChanged;
+        if (_controller != null)
+            _controller.Choice.OnValueChanged -= HandleChoiceChanged;
 
         _charge = null;
         _controller = null;
@@ -103,11 +112,53 @@ public class SuperUI : MonoBehaviour
 
         bool ready = _charge != null && _charge.IsFull;
         superButton.interactable = gameplay && ready;
+
+        if (readyIndicator != null)
+            readyIndicator.SetActive(gameplay && ready);
+
+        if (readyPulse != null)
+            readyPulse.gameObject.SetActive(gameplay && ready);
     }
 
     private void OnSuperClicked()
     {
         if (_controller == null) return;
         _controller.TryCastSuper();
+    }
+
+    private void HandleChoiceChanged(SuperChoice oldChoice, SuperChoice newChoice)
+    {
+        UpdateChoiceVisuals();
+    }
+
+    private void UpdateChoiceVisuals()
+    {
+        if (_controller == null) return;
+
+        var choice = _controller.Choice.Value;
+        if (superNameText != null)
+            superNameText.text = FormatChoice(choice);
+
+        if (superIcon != null)
+        {
+            var icon = _controller.GetIcon(choice);
+            superIcon.sprite = icon;
+            superIcon.enabled = icon != null;
+        }
+    }
+
+    private string FormatChoice(SuperChoice choice)
+    {
+        switch (choice)
+        {
+            case SuperChoice.SeismicQuake:
+                return "Seismic Quake";
+            case SuperChoice.BoulderPitch:
+                return "Boulder Pitch";
+            case SuperChoice.Gorge:
+                return "Gorge";
+            default:
+                return choice.ToString();
+        }
     }
 }
